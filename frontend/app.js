@@ -82,10 +82,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    // Setup API Base for Local vs Prod (Vercel)
+    const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:8000'
+        : '';
+
     // --- Data: Jobs from API ---
     async function fetchJobs() {
         try {
-            const res = await fetch('/api/vagas');
+            const res = await fetch(`${API_BASE}/api/vagas`);
             const result = await res.json();
             return result.data || [];
         } catch (error) {
@@ -164,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             try {
-                await fetch('/api/vagas', {
+                await fetch(`${API_BASE}/api/vagas`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
