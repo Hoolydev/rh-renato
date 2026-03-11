@@ -1,6 +1,5 @@
 import os
 from openai import OpenAI
-from elevenlabs import generate, save
 from services.db_service import obter_vagas_ativas
 
 def obter_client_openai():
@@ -67,16 +66,23 @@ def gerar_audio_ia(texto: str, nome_arquivo_saida="response.ogg"):
     """ Usa ElevenLabs para gerar áudio baseado no texto da IA """
     api_key = os.getenv("ELEVENLABS_API_KEY")
     if not api_key: return ""
-    from elevenlabs import set_api_key
-    set_api_key(api_key)
-    # Rachel voice id (example)
+    from elevenlabs.client import ElevenLabs
+    
     try:
-        audio = generate(
+        client = ElevenLabs(api_key=api_key)
+        # Using a default voice_id instead of just "Rachel" name (or Rachel's known ID 21m00Tcm4TlvDq8ikWAM)
+        audio_generator = client.text_to_speech.convert(
+            voice_id="21m00Tcm4TlvDq8ikWAM", # Rachel
+            output_format="mp3_44100_128",
             text=texto,
-            voice="Rachel",
-            model="eleven_multilingual_v2"
+            model_id="eleven_multilingual_v2"
         )
-        save(audio, nome_arquivo_saida)
+        
+        with open(nome_arquivo_saida, "wb") as f:
+            for chunk in audio_generator:
+                if chunk:
+                    f.write(chunk)
+                    
         return nome_arquivo_saida
     except Exception as e:
         print("Erro ElevenLabs:", e)
