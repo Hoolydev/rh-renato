@@ -50,10 +50,14 @@ Vagas atuais ativas e seus requisitos:
     # Recupera histórico do Supabase
     sessao = obter_sessao(numero_candidato)
     historico = []
-    if sessao and sessao.get("historico_json"):
+    if sessao and sessao.get("dados_candidato"):
         try:
-            val = sessao["historico_json"]
-            historico = json.loads(val) if isinstance(val, str) else val
+            dados = sessao["dados_candidato"]
+            if isinstance(dados, str):
+                dados = json.loads(dados)
+            val = dados.get("historico_ia")
+            if val:
+                historico = json.loads(val) if isinstance(val, str) else val
         except:
             historico = []
 
