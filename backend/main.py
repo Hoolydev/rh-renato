@@ -92,7 +92,7 @@ async def endpoint_upload_cv(file: UploadFile = File(...)):
 processed_messages = []
 
 @app.post("/webhook/zapi")
-async def zapi_webhook(request: Request):
+async def zapi_webhook(request: Request, background_tasks: BackgroundTasks):
     payload = await request.json()
     
     # Extrai o ID da mensagem para evitar processamento duplicado (Webhook Retry)
@@ -124,19 +124,17 @@ async def zapi_webhook(request: Request):
                 responder_audio = True
             
         if texto_recebido:
-            # Fluxo de WhatsApp Inteligente (Candidato enviando mensagem)
-            # 1. Simular Lead Scoring Rápido caso detecte que é um envio de perfil:
-            if "currículo" in texto_recebido.lower() or "experiência" in texto_recebido.lower():
-                score = calcular_lead_scoring(
-                    texto_curriculo=texto_recebido,
-                    titulo_vaga="Vaga Genérica",
-                    descricao_vaga="Analisar experiência",
-                    requisitos_vaga="Qualquer perfil válido"
-                )
-                resposta_texto = f"IA analisou seu perfil do WhatsApp! Lead Score gerado: {score['score']}/100. Pontos fortes: {', '.join(score['pontos_fortes'])}."
-            else:
-                # 2. Resposta IA normal de RH
-                resposta_texto = gerar_resposta_ia(texto_recebido, remetente)
+            # Resposta IA normal de RH
+            resposta_texto = gerar_resposta_ia(texto_recebido, remetente)
+            
+            # 2. Verifica se a entrevista acabou
+            if "[FIM_ENTREVISTA]" in resposta_texto:
+                # Remove a tag para não aparecer para o usuário
+                resposta_texto = resposta_texto.replace("[FIM_ENTREVISTA]", "").strip()
+                
+                # Dispara processamento em background para extrair dados e colocar na dashboard
+                background_tasks.add_task(processar_final_candidatura, remetente)
+                print(f"Entrevista finalizada para {remetente}. Processando dados do candidato...")
             
             # 3. Lógica para Responder usando Textos ou VOZ
             if "[AUDIO]" in resposta_texto:
@@ -170,3 +168,109 @@ async def endpoint_verificar_emails():
     # Rota para disparar manualmente ou agendada
     total_baixados = verificar_novos_curriculos()
     return {"novos_curriculos": total_baixados}
+
+async def processar_final_candidatura(remetente: str):
+    """
+    Extrai dados da conversa, salva o candidato e cria a candidatura vinculada à vaga.
+    """
+    from services.db_service import obter_sessao, supabase
+    from services.ai_service import obter_client_openai
+    from services.scoring_service import calcular_lead_scoring
+    import json
+
+    print(f"Iniciando extração de dados para o remetente: {remetente}")
+    sessao = obter_sessao(remetente)
+    if not sessao:
+        print("Sessão não encontrada para extração.")
+        return
+
+    historico = sessao.get("dados_candidato", {}).get("historico_ia", [])
+    if not historico:
+        print("Histórico vazio, abortando extração.")
+        return
+
+    # 1. Extrair JSON do Candidato via LLM
+    client = obter_client_openai()
+    if not client: return
+    
+    prompt_extracao = f"""
+    Você é um extrator de dados. Analise o histórico da conversa de recrutamento abaixo e retorne APENAS um JSON puro.
+    Campos necessários:
+    - nome (Nome completo do candidato)
+    - cpf (Apenas números)
+    - cep (Localização informada)
+    - experiencia_resumo (Resumo do que ele contou sobre a experiência profissional dele)
+    - vaga_desejada_titulo (Título da vaga que ele escolheu durante a conversa)
+    
+    HISTÓRICO:
+    {json.dumps(historico[-15:])}
+    """
+    
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt_extracao}],
+            temperature=0
+        )
+        conteudo = resp.choices[0].message.content.strip().replace("```json", "").replace("```", "")
+        dados_extracao = json.loads(conteudo)
+        
+        # 2. Salvar/Atualizar Candidato no Supabase
+        candidato_id = None
+        # Tenta buscar por WhatsApp
+        check = supabase.table("candidatos").select("id").eq("whatsapp", remetente).execute()
+        
+        payload_candidato = {
+            "nome": dados_extracao.get("nome"),
+            "whatsapp": remetente,
+            "cpf_raw": dados_extracao.get("cpf"),
+            "endereco_completo": dados_extracao.get("cep"),
+            "cargo_desejado": dados_extracao.get("vaga_desejada_titulo"),
+            "curriculo_texto_extraido": dados_extracao.get("experiencia_resumo"),
+            "fonte": "whatsapp",
+            "updated_at": "now()"
+        }
+
+        if check.data:
+            candidato_id = check.data[0]["id"]
+            supabase.table("candidatos").update(payload_candidato).eq("id", candidato_id).execute()
+        else:
+            res_c = supabase.table("candidatos").insert(payload_candidato).execute()
+            if res_c.data:
+                candidato_id = res_c.data[0]["id"]
+
+        # 3. Vincular Candidatura à Vaga correspondente
+        if candidato_id:
+            vaga_titulo = dados_extracao.get("vaga_desejada_titulo", "")
+            # Busca vaga ativa por título aproximado
+            vaga_res = supabase.table("vagas").select("*").ilike("titulo", f"%{vaga_titulo}%").eq("status", "aberta").execute()
+            
+            if vaga_res.data:
+                vaga_obj = vaga_res.data[0]
+                vaga_id = vaga_obj["id"]
+                
+                # Calcular Scoring Real em background (não mostra pro usuário)
+                score_data = calcular_lead_scoring(
+                    texto_curriculo=dados_extracao.get("experiencia_resumo", ""),
+                    titulo_vaga=vaga_obj["titulo"],
+                    descricao_vaga=vaga_obj["descricao"],
+                    requisitos_vaga=str(vaga_obj.get("requisitos_obrigatorios", ""))
+                )
+                
+                # Upsert na tabela candidaturas para aparecer no dashboard
+                supabase.table("candidaturas").upsert({
+                    "candidato_id": candidato_id,
+                    "vaga_id": vaga_id,
+                    "score_final": score_data.get("score", 0),
+                    "justificativa_ia": score_data.get("justificativa"),
+                    "pontos_fortes": score_data.get("pontos_fortes", []),
+                    "pontos_atencao": score_data.get("pontos_fracos", []),
+                    "status": "triagem"
+                }, on_conflict="candidato_id, vaga_id").execute()
+                
+                print(f"SUCESSO: Candidatura vinculada na Dashboard para {remetente} na vaga {vaga_titulo}")
+            else:
+                print(f"AVISO: Vaga '{vaga_titulo}' não encontrada ou não está aberta.")
+
+    except Exception as e:
+        print(f"ERRO CRÍTICO no processamento final da candidatura: {e}")
