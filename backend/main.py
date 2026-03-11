@@ -1,5 +1,10 @@
 import os
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+import sys
+
+# Adaptação para Vercel Serverless: Adiciona a pasta do main.py ao Path do Python
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
