@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="scroll-smooth">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RH Talent IA - Recruiter Portal</title>
+    <title>RH Talent IA - Recrutamento Inteligente</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts: Inter -->
@@ -12,9 +12,6 @@
         rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Custom CSS Base -->
-    <link rel="stylesheet" href="styles.css">
-
     <script>
         tailwind.config = {
             theme: {
@@ -29,388 +26,279 @@
             }
         }
     </script>
-    <script>
-        // --- ROUTE GUARD ---
-        if (!localStorage.getItem('rh_access_token')) {
-            window.location.href = 'login.html';
+    <style>
+        .gradient-text {
+            background: linear-gradient(135deg, #111 0%, #666 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-    </script>
+
+        .hero-bg {
+            background-image: radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+    </style>
 </head>
 
-<body class="bg-[#F4F4F5] h-screen w-full flex font-sans text-[#0A0A0A] overflow-hidden">
-    <!-- Sidebar -->
-    <aside class="w-20 bg-white border-r border-gray-200 flex flex-col items-center py-6 gap-8 z-10 shrink-0">
-        <div class="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white font-bold text-xl mb-4">
-            RH
+<body class="bg-[#F8F9FA] font-sans text-[#0A0A0A] overflow-x-hidden selection:bg-black selection:text-white">
+
+    <!-- Navigation -->
+    <nav
+        class="fixed top-0 inset-x-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 h-20 flex items-center justify-between px-6 md:px-12">
+        <div class="flex items-center gap-2">
+            <div class="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white font-bold text-xl">
+                RH
+            </div>
+            <span class="font-bold tracking-tight text-lg">Talent IA</span>
         </div>
-        <button class="nav-item p-3 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-colors"
-            data-target="section-vagas" title="Vagas">
-            <i data-lucide="briefcase" class="w-[22px] h-[22px]"></i>
-        </button>
-        <button
-            class="nav-item p-3 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-colors active-nav"
-            data-target="section-candidatos" title="Candidatos">
-            <i data-lucide="users" class="w-[22px] h-[22px]"></i>
-        </button>
-        <div class="flex-1"></div>
-        <button class="nav-item p-3 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-colors"
-            data-target="section-configuracoes" title="Configurações">
-            <i data-lucide="settings" class="w-[22px] h-[22px]"></i>
-        </button>
-    </aside>
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-full overflow-hidden">
+        <div class="hidden md:flex gap-8 font-medium text-sm text-gray-600">
+            <a href="#recursos" class="hover:text-black transition-colors">Recursos</a>
+            <a href="#como-funciona" class="hover:text-black transition-colors">Como funciona</a>
+            <a href="#depoimentos" class="hover:text-black transition-colors">Depoimentos</a>
+        </div>
 
-        <!-- Header -->
-        <header class="bg-white border-b border-gray-200 px-8 h-20 flex items-center justify-between shrink-0">
-            <nav class="flex gap-8" id="topNav">
-                <button class="top-nav-btn text-gray-500 hover:text-black font-medium text-sm transition-colors"
-                    data-target="section-vagas">Vagas Abertas</button>
-                <button class="top-nav-btn border-b-2 border-black pb-1 text-black font-semibold text-sm"
-                    data-target="section-candidatos">Meus Candidatos</button>
-                <button class="top-nav-btn text-gray-500 hover:text-black font-medium text-sm transition-colors"
-                    data-target="section-configuracoes">Configurações</button>
-            </nav>
+        <div class="flex items-center gap-4">
+            <a href="#" class="hidden md:block font-semibold text-sm hover:text-gray-600 transition-colors">Falar com
+                Consultor</a>
+            <a href="login.html"
+                class="bg-black hover:bg-gray-800 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-transform hover:-translate-y-0.5 shadow-sm">
+                Entrar
+            </a>
+        </div>
+    </nav>
 
-            <div class="flex items-center gap-4">
-                <button class="p-2 text-gray-400 hover:text-black transition-colors rounded-full hover:bg-gray-50">
-                    <i data-lucide="download" class="w-5 h-5"></i>
-                </button>
-                <button
-                    class="p-2 text-gray-400 hover:text-black transition-colors rounded-full hover:bg-gray-50 relative">
-                    <i data-lucide="bell" class="w-5 h-5"></i>
-                    <div class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></div>
-                </button>
-                <!-- Avatar Profile Dropdown -->
-                <div class="relative group cursor-pointer" id="avatarProfile">
+    <!-- Hero Section -->
+    <section
+        class="min-h-screen pt-32 pb-20 px-6 hero-bg relative flex flex-col items-center justify-center text-center">
+        <!-- Badge -->
+        <div
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100 border border-gray-200 text-xs font-semibold text-gray-700 mb-8 border-t-white shadow-sm">
+            <span class="relative flex h-2 w-2">
+                <span
+                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            Nova Engine de IA disponível
+        </div>
+
+        <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 max-w-4xl text-balance">
+            <span class="gradient-text">Recrutamento Inteligente</span> impulsionado por IA.
+        </h1>
+        <p class="text-gray-500 text-lg md:text-xl font-medium max-w-2xl text-balance mb-10 leading-relaxed">
+            Automatize a triagem, qualifique currículos no piloto automático usando integrações nativas com WhatsApp e
+            E-mail. Encontre o candidato perfeito em menos tempo.
+        </p>
+
+        <div class="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
+            <a href="login.html"
+                class="w-full sm:w-auto bg-black text-white font-semibold flex items-center justify-center gap-2 px-8 py-4 rounded-xl hover:bg-gray-800 transition-transform hover:-translate-y-0.5 shadow-xl shadow-black/10">
+                Acessar Dashboard
+                <i data-lucide="arrow-right" class="w-5 h-5"></i>
+            </a>
+            <button
+                class="w-full sm:w-auto bg-white text-gray-900 border border-gray-200 font-semibold px-8 py-4 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
+                Ver Demonstração
+            </button>
+        </div>
+
+        <!-- Dashboard Preview Image Mock -->
+        <div
+            class="mt-20 w-fit max-w-5xl mx-auto p-2 bg-white rounded-3xl border border-gray-200 shadow-2xl overflow-hidden relative group">
+            <div class="absolute inset-0 bg-gradient-to-t from-gray-50/80 to-transparent z-10 pointer-events-none">
+            </div>
+            <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2426&auto=format&fit=crop"
+                alt="Dashboard Preview"
+                class="rounded-2xl w-full h-auto object-cover opacity-90 transition-transform duration-700 group-hover:scale-[1.02]">
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="recursos" class="py-24 px-6 md:px-12 bg-white">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">Ferramentas de ponta.</h2>
+                <p class="text-gray-500 text-lg">Tudo o que você precisa para modernizar o seu departamento de
+                    Recrutamento & Seleção.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Card 1 -->
+                <div class="bg-[#F8F9FA] p-8 rounded-3xl border border-gray-100 hover:shadow-lg transition-shadow">
                     <div
-                        class="w-9 h-9 rounded-full bg-black text-white flex items-center justify-center font-bold text-sm overflow-hidden border border-gray-300">
-                        AR
+                        class="w-12 h-12 bg-white border border-gray-200 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                        <i data-lucide="bot" class="w-6 h-6 text-emerald-600"></i>
                     </div>
-
-                    <!-- Dropdown Menu -->
-                    <div id="profileDropdown"
-                        class="hidden absolute top-[calc(100%+10px)] right-0 bg-white rounded-xl shadow-xl min-w-[200px] z-50 border border-gray-100 animate-fadeIn overflow-hidden">
-                        <div class="p-4 flex flex-col border-b border-gray-100">
-                            <strong class="text-sm text-gray-900">Admin Recrutador</strong>
-                            <span class="text-xs text-gray-500">admin@rhtalent.com.br</span>
-                        </div>
-                        <button
-                            class="w-full text-left flex items-center gap-2 p-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors nav-item"
-                            data-target="section-usuarios">
-                            <i data-lucide="users" class="w-4 h-4 text-gray-400"></i> Gerenciar Usuários
-                        </button>
-                        <button id="logoutBtn"
-                            class="w-full text-left flex items-center gap-2 p-3 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                            <i data-lucide="log-out" class="w-4 h-4 text-red-400"></i> Sair
-                        </button>
+                    <h3 class="text-xl font-bold mb-3">Triagem Humanizada</h3>
+                    <p class="text-gray-500 leading-relaxed font-medium">Um agente se comunica ativamente com os
+                        candidatos via WhatsApp para coletar e categorizar perfis em minutos.</p>
+                </div>
+                <!-- Card 2 -->
+                <div class="bg-[#F8F9FA] p-8 rounded-3xl border border-gray-100 hover:shadow-lg transition-shadow">
+                    <div
+                        class="w-12 h-12 bg-white border border-gray-200 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                        <i data-lucide="bar-chart-3" class="w-6 h-6 text-blue-600"></i>
                     </div>
+                    <h3 class="text-xl font-bold mb-3">Lead Scoring Inteligente</h3>
+                    <p class="text-gray-500 leading-relaxed font-medium">Notas precisas geradas ao analisar
+                        automaticamente o currículo do candidato com os requisitos de cada vaga aberta.</p>
                 </div>
-            </div>
-        </header>
-
-        <!-- Script for Logout -->
-        <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                const logoutBtn = document.getElementById('logoutBtn');
-                if (logoutBtn) {
-                    logoutBtn.addEventListener('click', () => {
-                        localStorage.removeItem('rh_access_token');
-                        localStorage.removeItem('rh_user_email');
-                        window.location.href = 'login.html';
-                    });
-                }
-            });
-        </script>
-
-        <!-- Scrollable Pages Area -->
-        <div class="flex-1 overflow-hidden p-6 md:p-8 relative" id="pagesContainer">
-
-            <!-- SECTION: Vagas Abertas -->
-            <div id="section-vagas" class="view-section hidden">
-                <div class="flex justify-between items-end mb-8">
-                    <div>
-                        <h1 class="text-3xl font-bold tracking-tight mb-2">Vagas Abertas</h1>
-                        <p class="text-gray-500 text-sm font-medium">Acompanhe as suas vagas em andamento.</p>
+                <!-- Card 3 -->
+                <div class="bg-[#F8F9FA] p-8 rounded-3xl border border-gray-100 hover:shadow-lg transition-shadow">
+                    <div
+                        class="w-12 h-12 bg-white border border-gray-200 rounded-xl flex items-center justify-center mb-6 shadow-sm">
+                        <i data-lucide="database" class="w-6 h-6 text-purple-600"></i>
                     </div>
-                    <button id="btnNovaVaga"
-                        class="bg-black hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 shadow-sm transition-all hover:-translate-y-0.5">
-                        <i data-lucide="plus" class="w-[18px] h-[18px]"></i>
-                        Postar Nova Vaga
-                    </button>
-                </div>
-                <div id="jobsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Populated by JS -->
-                </div>
-            </div>
-
-            <!-- SECTION: Nova Vaga -->
-            <div id="section-nova-vaga" class="view-section hidden">
-                <div class="max-w-2xl mx-auto bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
-                    <h2 class="text-2xl font-bold mb-2">Criar Nova Vaga</h2>
-                    <p class="text-gray-500 text-sm mb-6">Preencha os detalhes para publicar no mural de candidatos.
-                    </p>
-
-                    <form id="formNovaVaga" class="flex flex-col gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">Título da Vaga</label>
-                            <input type="text" id="nv_titulo" required placeholder="Ex: Auxiliar Administrativo"
-                                class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">Nome da Empresa</label>
-                            <input type="text" id="nv_empresa" required placeholder="Ex: Cliente Confidencial"
-                                value="RH Talent IA"
-                                class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5">
-                        </div>
-                        <div class="flex gap-4">
-                            <div class="flex-1">
-                                <label class="block text-sm font-semibold mb-1 text-gray-700">Salário /
-                                    Faixa</label>
-                                <input type="text" id="nv_salario" required placeholder="Ex: R$ 2.000 - R$ 2.500"
-                                    class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5">
-                            </div>
-                            <div class="flex-1">
-                                <label class="block text-sm font-semibold mb-1 text-gray-700">Tags (separadas por
-                                    vírgula)</label>
-                                <input type="text" id="nv_tags" required placeholder="Ex: CLT, Presencial"
-                                    class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">Descrição da Vaga</label>
-                            <textarea id="nv_desc" rows="3" required placeholder="Descreva as responsabilidades..."
-                                class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5"></textarea>
-                        </div>
-                        <button type="submit"
-                            class="bg-black hover:bg-gray-800 text-white w-full py-3 rounded-xl font-semibold shadow-sm transition-colors mt-2">Publicar
-                            Vaga no Mural</button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- SECTION: Meus Candidatos -->
-            <div id="section-candidatos" class="view-section active"> <!-- ACTIVE BY DEFAULT FOR DISPLAY -->
-                <div class="flex justify-between items-end mb-8">
-                    <div>
-                        <h1 class="text-3xl font-bold tracking-tight mb-2">Bem-vindo de volta, Recrutador</h1>
-                        <p class="text-gray-500 text-sm font-medium">12 novos candidatos processados &bull; Média
-                            Lead Score: 87/100</p>
-                    </div>
-                    <button
-                        class="nav-item bg-black hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 shadow-sm transition-all hover:-translate-y-0.5"
-                        data-target="section-nova-vaga">
-                        <i data-lucide="plus" class="w-[18px] h-[18px]"></i>
-                        Postar Nova Vaga
-                    </button>
-                </div>
-
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col flex-1 min-h-0">
-
-                    <!-- Filters -->
-                    <div class="p-5 border-b border-gray-100 flex flex-wrap items-center gap-4">
-                        <div class="relative flex-1 min-w-[200px] max-w-sm">
-                            <i data-lucide="search"
-                                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-[18px] h-[18px]"></i>
-                            <input type="text" id="filterSearch" placeholder="Buscar por nome ou vaga..."
-                                class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 text-gray-700">
-                        </div>
-
-                        <select id="filterScore"
-                            class="bg-gray-50 border border-gray-200 text-sm rounded-xl py-2 px-3 focus:outline-none focus:border-gray-300 cursor-pointer text-gray-700 appearance-none min-w-[140px]">
-                            <option value="Todos">Score: Todos</option>
-                            <option value="Alto">Alto (≥80)</option>
-                            <option value="Médio">Médio (60-79)</option>
-                            <option value="Baixo">Baixo (&lt;60)</option>
-                        </select>
-
-                        <select id="filterEtapa"
-                            class="bg-gray-50 border border-gray-200 text-sm rounded-xl py-2 px-3 focus:outline-none focus:border-gray-300 cursor-pointer text-gray-700 appearance-none min-w-[140px]">
-                            <option value="Todos">Etapa: Todas</option>
-                            <option value="Triagem">Triagem</option>
-                            <option value="Entrevista">Entrevista</option>
-                            <option value="Proposta">Proposta</option>
-                            <option value="Contratado">Contratado</option>
-                        </select>
-
-                        <select id="filterFonte"
-                            class="bg-gray-50 border border-gray-200 text-sm rounded-xl py-2 px-3 focus:outline-none focus:border-gray-300 cursor-pointer text-gray-700 appearance-none min-w-[140px]">
-                            <option value="Todos">Fonte: Todas</option>
-                            <option value="WhatsApp">WhatsApp</option>
-                            <option value="Email">Email</option>
-                            <option value="Upload">Upload</option>
-                        </select>
-
-                        <select id="filterDisp"
-                            class="bg-gray-50 border border-gray-200 text-sm rounded-xl py-2 px-3 focus:outline-none focus:border-gray-300 cursor-pointer text-gray-700 appearance-none min-w-[140px]">
-                            <option value="Todos">Disp: Todas</option>
-                            <option value="Imediato">Imediato</option>
-                            <option value="15 dias">15 dias</option>
-                            <option value="30 dias">30 dias</option>
-                        </select>
-                    </div>
-
-                    <!-- Table -->
-                    <div class="flex-1 overflow-x-auto">
-                        <table class="w-full text-left whitespace-nowrap">
-                            <thead>
-                                <tr
-                                    class="text-[10px] font-bold text-gray-500 tracking-wider uppercase border-b border-gray-100 bg-gray-50/50">
-                                    <th class="px-4 py-3">Candidato e Contato</th>
-                                    <th class="px-4 py-3">Vaga Aplicada</th>
-                                    <th class="px-4 py-3">Distância</th>
-                                    <th class="px-4 py-3">Score Final</th>
-                                    <th class="px-4 py-3">Scores Detalhados</th>
-                                    <th class="px-4 py-3">Disponibilidade</th>
-                                    <th class="px-4 py-3">Pretensão Salarial</th>
-                                    <th class="px-4 py-3">Etapa do Funil</th>
-                                    <th class="px-4 py-3">Engajamento</th>
-                                    <th class="px-4 py-3 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="candidatosGrid" class="text-sm">
-                                <!-- JS populates rich mock data -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SECTION: Usuários -->
-            <div id="section-usuarios" class="view-section hidden">
-                <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-                    <div class="flex justify-between items-center mb-6">
-                        <div>
-                            <h3 class="text-2xl font-bold tracking-tight mb-1">Gestão de Usuários</h3>
-                            <p class="text-gray-500 text-sm">Administre o acesso à plataforma e recrutadores.</p>
-                        </div>
-                        <button
-                            class="bg-black hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 shadow-sm transition-all"
-                            onclick="alert('Integração com backend pendente')">
-                            <i data-lucide="user-plus" class="w-[18px] h-[18px]"></i> Novo Usuário
-                        </button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead>
-                                <tr
-                                    class="text-[11px] font-semibold text-gray-500 tracking-wider uppercase border-b border-gray-100">
-                                    <th class="px-4 py-3">Nome</th>
-                                    <th class="px-4 py-3">E-mail</th>
-                                    <th class="px-4 py-3">Função</th>
-                                    <th class="px-4 py-3">Status</th>
-                                    <th class="px-4 py-3 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-sm text-gray-700">
-                                <tr class="border-b border-gray-50 hover:bg-gray-50/50">
-                                    <td class="px-4 py-3 font-semibold text-gray-900">Admin Recrutador</td>
-                                    <td class="px-4 py-3">admin@rhtalent.com.br</td>
-                                    <td class="px-4 py-3">Administrador</td>
-                                    <td class="px-4 py-3"><span
-                                            class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md text-xs font-semibold">Ativo</span>
-                                    </td>
-                                    <td class="px-4 py-3 text-right">
-                                        <button
-                                            class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition"><i
-                                                data-lucide="edit-2" class="w-[16px] h-[16px]"></i></button>
-                                    </td>
-                                </tr>
-                                <tr class="hover:bg-gray-50/50">
-                                    <td class="px-4 py-3 font-semibold text-gray-900">RH Teste</td>
-                                    <td class="px-4 py-3">rh@rhtalent.com.br</td>
-                                    <td class="px-4 py-3">Recrutador</td>
-                                    <td class="px-4 py-3"><span
-                                            class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md text-xs font-semibold">Ativo</span>
-                                    </td>
-                                    <td class="px-4 py-3 text-right">
-                                        <button
-                                            class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition"><i
-                                                data-lucide="edit-2" class="w-[16px] h-[16px]"></i></button>
-                                        <button
-                                            class="p-1.5 text-red-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition"><i
-                                                data-lucide="trash-2" class="w-[16px] h-[16px]"></i></button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SECTION: Configurações -->
-            <div id="section-configuracoes" class="view-section hidden">
-                <div class="max-w-xl bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-                    <h3 class="text-2xl font-bold tracking-tight mb-2">Configurações do Robô</h3>
-                    <p class="text-gray-500 text-sm mb-6">Defina para onde enviar as notificações de novos
-                        aprovados.</p>
-
-                    <form class="flex flex-col gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">E-mail do
-                                Recrutador</label>
-                            <input type="email" value="rh@talento.com.br" required
-                                class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 text-gray-800">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold mb-1 text-gray-700">WhatsApp do Recrutador
-                                (com DDD)</label>
-                            <input type="text" value="11988887777" required
-                                class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 text-gray-800">
-                        </div>
-                        <button type="button"
-                            class="bg-black hover:bg-gray-800 text-white w-full py-3 rounded-xl font-semibold shadow-sm transition-colors mt-2"
-                            onclick="alert('Configurações Salvas!')">Salvar Configurações</button>
-                    </form>
-                </div>
-            </div>
-
-        </div>
-    </main>
-
-    <!-- Drawer Overlay -->
-    <div id="drawerOverlay"
-        class="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity animate-fadeIn hidden">
-        <!-- Drawer Panel -->
-        <div id="drawerPanel"
-            class="fixed inset-y-0 right-0 w-[450px] bg-white shadow-2xl z-50 flex flex-col drawer-panel">
-            <div class="h-16 border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
-                <h2 class="font-semibold text-lg flex items-center gap-2">Perfil do Candidato</h2>
-                <button id="closeDrawerBtn"
-                    class="p-1.5 text-gray-400 hover:text-black rounded-lg hover:bg-gray-100 transition-colors">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-
-            <div class="flex-1 overflow-y-auto px-6 py-8" id="drawerContentBody">
-                <!-- Populated by JS -->
-            </div>
-
-            <div class="p-6 bg-gray-50 border-t border-gray-100 shrink-0 flex flex-col gap-3">
-                <button
-                    class="w-full bg-black text-white py-3 rounded-xl font-semibold shadow-sm hover:bg-gray-800 transition-colors flex justify-center items-center gap-2">
-                    Avançar no Funil <i data-lucide="chevron-right" class="w-4 h-4"></i>
-                </button>
-                <div class="flex gap-3">
-                    <button
-                        class="flex-1 bg-white border border-gray-200 text-gray-700 py-2.5 rounded-xl font-medium hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors flex justify-center items-center gap-2 text-sm">
-                        <i data-lucide="message-circle" class="w-[14px] h-[14px]"></i> WhatsApp
-                    </button>
-                    <button
-                        class="flex-1 bg-white border border-gray-200 text-red-600 py-2.5 rounded-xl font-medium hover:bg-red-50 hover:border-red-200 transition-colors flex justify-center items-center gap-2 text-sm">
-                        Reprovar
-                    </button>
+                    <h3 class="text-xl font-bold mb-3">Banco de Talentos</h3>
+                    <p class="text-gray-500 leading-relaxed font-medium">Busque candidatos com similaridade vetorial
+                        utilizando tecnologia robusta, direto na nuvem para agilidade.</p>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <!-- Initialization Scripts -->
+    <!-- Vagas Section (Job Board) -->
+    <section id="vagas" class="py-24 px-6 md:px-12 bg-[#F8F9FA]">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                <div>
+                    <h2 class="text-3xl md:text-4xl font-bold tracking-tight mb-4">Vagas em Destaque</h2>
+                    <p class="text-gray-500 text-lg">Faça parte das empresas que estão transformando o mercado.</p>
+                </div>
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+                    <input type="text" id="publicSearch" placeholder="Buscar por cargo..."
+                        class="pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 w-full md:w-64 transition-all">
+                </div>
+            </div>
+
+            <!-- Grid de Vagas -->
+            <div id="jobsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Vagas renderizadas via JS -->
+            </div>
+
+            <div id="loadingJobs" class="flex justify-center py-12 hidden">
+                <span class="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-[#0A0A0A] text-white py-12 px-6 md:px-12">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black font-bold text-sm">
+                    RH</div>
+                <span class="font-semibold text-lg">Talent IA</span>
+            </div>
+
+            <p class="text-gray-400 text-sm font-medium">&copy; 2026 RH Talent IA. Todos os direitos reservados.</p>
+
+            <div class="flex gap-4 text-gray-400">
+                <a href="#" class="hover:text-white transition-colors"><i data-lucide="linkedin"
+                        class="w-5 h-5"></i></a>
+                <a href="#" class="hover:text-white transition-colors"><i data-lucide="github" class="w-5 h-5"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Init Scripts -->
     <script>
         lucide.createIcons();
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const jobsContainer = document.getElementById('jobsContainer');
+            const loadingJobs = document.getElementById('loadingJobs');
+            const searchInput = document.getElementById('publicSearch');
+
+            let allActiveJobs = [];
+
+            // Setup API Base for Local (Port 3000 -> 8000) vs Vercel
+            const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? 'http://localhost:8000' : '';
+
+            async function loadPublicJobs() {
+                loadingJobs.classList.remove('hidden');
+                jobsContainer.innerHTML = '';
+
+                try {
+                    const res = await fetch(`${API_BASE}/api/vagas`);
+                    const result = await res.json();
+                    allActiveJobs = result.data || [];
+                    renderPublicJobs(allActiveJobs);
+                } catch (error) {
+                    console.error('Erro ao buscar vagas:', error);
+                    jobsContainer.innerHTML = `<div class="col-span-full p-6 bg-red-50 text-red-600 rounded-2xl border border-red-100 text-center font-medium">Nenhuma vaga encontrada ou servidor indisponível no momento.</div>`;
+                } finally {
+                    loadingJobs.classList.add('hidden');
+                }
+            }
+
+            function renderPublicJobs(jobs) {
+                jobsContainer.innerHTML = '';
+
+                if (jobs.length === 0) {
+                    jobsContainer.innerHTML = `<div class="col-span-full p-12 bg-white rounded-3xl border border-gray-100 text-center shadow-sm">
+                        <i data-lucide="inbox" class="w-12 h-12 text-gray-300 mx-auto mb-4"></i>
+                        <h3 class="text-lg font-bold text-gray-900 mb-1">Nenhuma vaga encontrada</h3>
+                        <p class="text-gray-500">Volte novamente em breve para novas oportunidades.</p>
+                    </div>`;
+                    lucide.createIcons();
+                    return;
+                }
+
+                jobs.forEach(job => {
+                    // Extract safe values
+                    const title = job.titulo || 'Vaga Confidencial';
+                    const company = job.empresa || 'Empresa parceira';
+                    const maxKm = job.raio_maximo_km || '15';
+                    // Parse raw requirements (Supabase JSONB string to list) safely
+                    let reqs = [];
+                    try { reqs = JSON.parse(job.requisitos_obrigatorios || '[]'); } catch (e) { reqs = [job.requisitos_obrigatorios]; }
+                    if (!Array.isArray(reqs)) reqs = [reqs];
+
+                    const reqTag = reqs[0] ? `<span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold whitespace-nowrap overflow-hidden text-ellipsis">${reqs[0]}</span>` : '';
+
+                    const card = document.createElement('div');
+                    card.className = "bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-lg transition-all flex flex-col h-full group";
+                    card.innerHTML = `
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="w-12 h-12 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center">
+                                <i data-lucide="briefcase" class="w-5 h-5 text-gray-400 group-hover:text-black transition-colors"></i>
+                            </div>
+                            <span class="px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-xs font-bold w-fit">Nova</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-900 mb-1 line-clamp-1">${title}</h3>
+                        <p class="text-sm font-medium text-gray-500 mb-4">${company}</p>
+                        
+                        <div class="flex gap-2 mb-6 overflow-hidden">
+                            <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-semibold whitespace-nowrap"><i data-lucide="map-pin" class="w-3 h-3 inline mr-1"></i>Raio ${maxKm}km</span>
+                            ${reqTag}
+                        </div>
+
+                        <div class="mt-auto pt-4 border-t border-gray-50">
+                            <button onclick="alert('Funcionalidade de Aplicação Web / Z-API em breve!')" class="w-full bg-black text-white font-semibold flex items-center justify-center gap-2 py-3 rounded-xl hover:bg-gray-800 transition-colors shadow-sm text-sm">
+                                Aplicar Agora
+                            </button>
+                        </div>
+                    `;
+                    jobsContainer.appendChild(card);
+                });
+                lucide.createIcons();
+            }
+
+            searchInput.addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                const filtered = allActiveJobs.filter(j =>
+                    (j.titulo || '').toLowerCase().includes(term) ||
+                    (j.empresa || '').toLowerCase().includes(term)
+                );
+                renderPublicJobs(filtered);
+            });
+
+            loadPublicJobs();
+        });
     </script>
-    <script src="app.js"></script>
 </body>
 
 </html>

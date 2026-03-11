@@ -87,7 +87,7 @@
         </div>
 
         <p class="text-center text-sm text-gray-500 font-medium mt-8">
-            <a href="landing.html" class="hover:text-black transition-colors flex items-center justify-center gap-1"><i
+            <a href="index.html" class="hover:text-black transition-colors flex items-center justify-center gap-1"><i
                     data-lucide="arrow-left" class="w-3 h-3"></i> Voltar para Home</a>
         </p>
     </div>
@@ -128,7 +128,7 @@
                     // Save session token
                     localStorage.setItem('rh_access_token', data.data.session.access_token);
                     localStorage.setItem('rh_user_email', email);
-                    window.location.href = 'index.html';
+                    window.location.href = 'dashboard.html';
                 } else {
                     errorText.textContent = data.detail || 'E-mail ou senha inválidos.';
                     errorMsg.classList.remove('hidden');
