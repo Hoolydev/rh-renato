@@ -1,0 +1,76 @@
+{
+  "name": "WF-05: Notify Output - Top 3",
+  "nodes": [
+    {
+      "id": "node-wf05-01",
+      "name": "Webhook Notify Output",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notify-output",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf05-02",
+      "name": "Montar e Enviar Mensagens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst vaga = data.vaga || {};\nconst top3 = data.top3 || [];\nconst empresa = $vars.EMPRESA_NOME || 'Empresa';\nconst EVOLUTION_URL = $vars.EVOLUTION_API_URL;\nconst EVOLUTION_KEY = $vars.EVOLUTION_API_KEY;\nconst EVOLUTION_INST = $vars.EVOLUTION_INSTANCE;\nconst SUPABASE_URL = $vars.SUPABASE_URL;\nconst SUPABASE_KEY = $vars.SUPABASE_KEY;\nconst PAINEL_URL = $vars.PAINEL_URL || 'https://painel.empresa.com';\n\nasync function sendWhatsApp(phone, message) {\n  if (!phone || !EVOLUTION_URL) return;\n  try {\n    await fetch(`${EVOLUTION_URL}/message/sendText/${EVOLUTION_INST}`, {\n      method: 'POST',\n      headers: { 'apikey': EVOLUTION_KEY, 'Content-Type': 'application/json' },\n      body: JSON.stringify({ number: phone.replace(/\\D/g,'') + '@s.whatsapp.net', options: { delay: 1200, presence: 'composing' }, textMessage: { text: message } })\n    });\n  } catch(e) {}\n}\n\n// Mensagem WhatsApp para o recrutador\nconst medalhas = ['🥇', '🥈', '🥉'];\nlet candidatosTexto = '';\ntop3.forEach((c, i) => {\n  const distKm = parseFloat(c.candidato_distancia_km || c._distancia_km || c.distancia_sede_km || 0).toFixed(1);\n  const tempo = Math.round(distKm * 3);\n  const habilidades = (c.habilidades_array || []).slice(0, 3).join(', ');\n  candidatosTexto += `\n${medalhas[i]} *${i+1}º COLOCADO* — Score: ${c.score_final}/100\n👤 ${c.nome}\n📍 ${distKm} km | ⏱️ ~${tempo} min\n✅ ${c.formacao || 'N/A'} | ${c.anos_experiencia || 0} anos exp.\n${habilidades ? '🔧 ' + habilidades : ''}\n📞 ${c.whatsapp || c.telefone || 'N/A'} | ${c.email || 'N/A'}\n`;\n});\n\nconst mensagemRecrutador = `🎯 *SHORTLIST — ${vaga.titulo || 'Vaga'}*\n━━━━━━━━━━━━━━━━━━━━━━\n📊 *${data.total_avaliados || top3.length} candidatos avaliados*\n${candidatosTexto}\n🔗 ${PAINEL_URL}/vagas/${vaga.vaga_id || ''}\n━━━━━━━━━━━━━━━━━━━━━━\n_Responda:_\n*APROVAR 1*, *APROVAR 2* ou *APROVAR 3*\n*REPROVAR [nº]* para rejeitar\n*CONTRATAR [nº]* para finalizar`;\n\n// Enviar WhatsApp para recrutador\nif (vaga.responsavel_whatsapp) {\n  await sendWhatsApp(vaga.responsavel_whatsapp, mensagemRecrutador);\n}\n\n// Notificar candidatos do top 3\nfor (const c of top3) {\n  if (c.whatsapp) {\n    const msgCandidato = `🌟 Olá, *${c.nome}*!\\n\\nSeu perfil foi selecionado para a shortlist da vaga de *${vaga.titulo}* em ${empresa}! 🎉\\n\\n🏆 Você está em *${c.posicao_ranking}º lugar* — Score: *${c.score_final}/100*\\n\\n📅 Nossa equipe entrará em contato em até *48 horas* para agendamento de entrevista.\\n\\nMantenha seu WhatsApp disponível! ✅`;\n    await sendWhatsApp(c.whatsapp, msgCandidato);\n    // Atualiza notificado no Supabase\n    if (vaga.vaga_id && c.id) {\n      try {\n        await fetch(`${SUPABASE_URL}/rest/v1/candidaturas?candidato_id=eq.${c.id}&vaga_id=eq.${vaga.vaga_id}`, {\n          method: 'PATCH',\n          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },\n          body: JSON.stringify({ notificado_candidato: true, data_notificacao: new Date().toISOString() })\n        });\n      } catch(e) {}\n    }\n  }\n}\n\n// Log analytics\ntry {\n  await fetch(`${SUPABASE_URL}/rest/v1/analytics_triagem`, {\n    method: 'POST',\n    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },\n    body: JSON.stringify({ canal: 'output_shortlist', vaga_id: vaga.vaga_id, vaga_titulo: vaga.titulo, total_avaliados: data.total_avaliados, top3_scores: JSON.stringify(top3.map(c => ({id:c.id, score:c.score_final}))), created_at: new Date().toISOString() })\n  });\n} catch(e) {}\n\n// Montar tabela comparativa para e-mail\nconst tabelaRows = top3.map((c, i) => {\n  const distKm = parseFloat(c.candidato_distancia_km || c.distancia_sede_km || 0).toFixed(1);\n  const bg = i === 0 ? '#e8f5e9' : (i === 1 ? '#e3f2fd' : '#fff3e0');\n  const jus = c.justificativa || c.justificativa_ia || '';\n  return `<tr style=\"background:${bg}\"><td style=\"padding:8px;font-weight:bold\">${medalhas[i]} ${i+1}º</td><td style=\"padding:8px\">${c.nome}</td><td style=\"padding:8px;text-align:center\"><strong>${c.score_final}</strong></td><td style=\"padding:8px;text-align:center\">${c.score_tecnico||'-'}</td><td style=\"padding:8px;text-align:center\">${c.score_geo||'-'}</td><td style=\"padding:8px\">${distKm} km</td><td style=\"padding:8px\">${c.whatsapp||c.telefone||'-'}</td></tr><tr style=\"background:${bg}\"><td colspan=\"7\" style=\"padding:4px 8px;font-style:italic;font-size:13px\">💡 ${jus}</td></tr>`;\n}).join('');\n\nconst emailHtml = `<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body style=\"font-family:Arial,sans-serif;color:#333;max-width:700px;margin:0 auto;padding:20px\">\n<div style=\"background:#1a56db;color:white;padding:20px;border-radius:8px 8px 0 0\"><h2>🎯 3 Candidatos Selecionados</h2><p>${vaga.titulo} | ${empresa} | ${new Date().toLocaleDateString('pt-BR')}</p></div>\n<div style=\"background:#f8f9fa;padding:20px;border-radius:0 0 8px 8px\">\n<table style=\"width:100%;border-collapse:collapse;border:1px solid #ddd\">\n<tr style=\"background:#1a56db;color:white\"><th style=\"padding:8px\">Rank</th><th style=\"padding:8px\">Nome</th><th style=\"padding:8px\">Score</th><th style=\"padding:8px\">Técnico</th><th style=\"padding:8px\">Geo</th><th style=\"padding:8px\">Distância</th><th style=\"padding:8px\">Contato</th></tr>\n${tabelaRows}\n</table>\n<p style=\"margin-top:20px\"><a href=\"${PAINEL_URL}/vagas/${vaga.vaga_id||''}\" style=\"background:#1a56db;color:white;padding:10px 20px;border-radius:4px;text-decoration:none\">Ver Perfis Completos no Painel</a></p>\n<p style=\"font-size:12px;color:#777\">Total avaliados: ${data.total_avaliados||top3.length} | Gerado pelo Agente IA de Seleção</p>\n</div></body></html>`;\n\nreturn [{ json: { emailHtml, responsavel_email: vaga.responsavel_email, titulo: vaga.titulo, empresa, mensagemRecrutador, top3Notificados: top3.filter(c => c.whatsapp).length } }];"
+      }
+    },
+    {
+      "id": "node-wf05-03",
+      "name": "Enviar Email Recrutador",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [680, 300],
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CREDENTIAL_ID",
+          "name": "SMTP - vagas@empresa.com"
+        }
+      },
+      "parameters": {
+        "fromEmail": "={{ $vars.EMAIL_VAGAS }}",
+        "toEmail": "={{ $json.responsavel_email }}",
+        "subject": "=🎯 3 candidatos selecionados — {{ $json.titulo }} | {{ new Date().toLocaleDateString('pt-BR') }}",
+        "emailFormat": "html",
+        "html": "={{ $json.emailHtml }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf05-04",
+      "name": "Resposta Final",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\", \"message\": \"Shortlist enviada\" }",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Notify Output": {
+      "main": [[{ "node": "Montar e Enviar Mensagens", "type": "main", "index": 0 }]]
+    },
+    "Montar e Enviar Mensagens": {
+      "main": [[{ "node": "Enviar Email Recrutador", "type": "main", "index": 0 }]]
+    },
+    "Enviar Email Recrutador": {
+      "main": [[{ "node": "Resposta Final", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "tags": [{ "name": "RH" }, { "name": "Output" }],
+  "pinData": {}
+}

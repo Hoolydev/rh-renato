@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vagas - RH Talent IA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://unpkg.com/lucide@latest/css/lucide.css" rel="stylesheet">
+    <style>
+        /* Candiate Page Specific Styles Override */
+        body {
+            background: #f3f4f6;
+            display: block;
+            padding: 0;
+            min-height: auto;
+        }
+
+        .hero-public {
+            text-align: center;
+            padding: 4rem 1rem 2rem 1rem;
+        }
+
+        .hero-public h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #111;
+            margin-bottom: 1rem;
+            letter-spacing: -1px;
+        }
+
+        .hero-public p {
+            font-size: 1.1rem;
+            color: #6b7280;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        .public-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .public-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            background: white;
+            border-bottom: 1px solid var(--border);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="public-header">
+        <div class="logo">
+            <div class="logo-mark" style="background-color: var(--bg-dark); color:white;"><i data-lucide="bot"></i>
+            </div>
+            <h2>RH Talent <span style="font-weight: 300;">IA</span></h2>
+        </div>
+        <div>
+            <span style="font-size: 0.9rem; font-weight: 500; color:var(--text-muted)">Portal de Vagas</span>
+        </div>
+    </header>
+
+    <div class="hero-public">
+        <h1>Encontre seu próximo desafio</h1>
+        <p>Abaixo estão as vagas disponíveis no momento. Candidate-se enviando seu currículo pelo WhatsApp ou utilizando
+            nossa Inteligência Artificial.</p>
+    </div>
+
+    <div class="public-container">
+        <!-- Main Grid -->
+        <div class="jobs-grid" id="jobsGridPublic">
+            <!-- Rendered by JS -->
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>lucide.createIcons();</script>
+    <script src="app.js"></script>
+    <script>
+        // Init public page jobs
+        document.addEventListener('DOMContentLoaded', () => {
+            const jobs = JSON.parse(localStorage.getItem('rh_jobs'));
+            const publicGrid = document.getElementById('jobsGridPublic');
+            if (jobs && publicGrid) {
+                publicGrid.innerHTML = '';
+                jobs.forEach(job => {
+                    const card = document.createElement('div');
+                    card.className = `job-card ${job.theme === 'dark' ? 'dark-theme' : ''}`;
+                    const tagsHtml = job.tags.map(tag => `<span>${tag}</span>`).join('    ');
+
+                    card.innerHTML = `
+                        <div class="card-header">
+                            <div class="company-logo">
+                                <i data-lucide="briefcase" style="color:var(--text-muted)"></i>
+                            </div>
+                        </div>
+                        <div class="date-wrapper" style="position:absolute; top: 1.5rem; left: 5rem;">
+                        <span class="date-badge">${job.date}</span>
+                        </div>
+                        
+                        <div class="company-name">
+                            ${job.company} 
+                        </div>
+                        <h3 class="job-title">${job.title}</h3>
+                        
+                        <div class="job-meta">${tagsHtml}</div>
+                        
+                        <div class="job-salary" style="margin-bottom:1rem">${job.salary}</div>
+                        
+                        <!-- Mostra descrição na página pública se tiver -->
+                        ${job.descricao ? `<p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem">${job.descricao.substring(0, 80)}...</p>` : ''}
+                        
+                        <button class="btn-dark" style="width:100%" onclick="window.alert('Abrindo WhatsApp para a vaga: ${job.title}. Envie seu currículo para a nossa IA realizar a triagem!')">
+                            <i data-lucide="message-circle" style="width:18px;height:18px"></i> Candidatar-se no Zap
+                        </button>
+                    `;
+                    publicGrid.appendChild(card);
+                });
+                if (window.lucide) window.lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RH Talent IA - Login Recrutador</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+</head>
+
+<body
+    class="bg-[#F8F9FA] h-screen w-full flex items-center justify-center font-sans antialiased selection:bg-black selection:text-white">
+
+    <div class="w-full max-w-md mx-auto p-6">
+        <!-- Logo -->
+        <div class="flex justify-center mb-8">
+            <div class="flex items-center gap-2">
+                <div
+                    class="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-sm">
+                    RH
+                </div>
+                <span class="font-bold tracking-tight text-xl text-gray-900">Talent IA</span>
+            </div>
+        </div>
+
+        <!-- Login Card -->
+        <div class="bg-white rounded-3xl shadow-xl shadow-black/5 border border-gray-100 p-8">
+            <h2 class="text-2xl font-bold text-center text-gray-900 mb-2">Bem-vindo de volta</h2>
+            <p class="text-gray-500 text-sm font-medium text-center mb-8">Entre com as suas credenciais de recrutador.
+            </p>
+
+            <form id="loginForm" class="flex flex-col gap-5">
+                <!-- Erro msg box -->
+                <div id="errorMsg"
+                    class="hidden bg-red-50 text-red-600 border border-red-200 text-sm font-semibold p-3 rounded-xl flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4"></i> <span id="errorText">Credenciais
+                        inválidas.</span>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-1.5 text-gray-700">E-mail corporativo</label>
+                    <div class="relative">
+                        <i data-lucide="mail"
+                            class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+                        <input type="email" id="email" required placeholder="admin@rhtalento.com"
+                            class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-shadow transition-colors text-gray-900">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold mb-1.5 text-gray-700">Senha</label>
+                    <div class="relative">
+                        <i data-lucide="lock"
+                            class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+                        <input type="password" id="password" required placeholder="••••••••"
+                            class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-shadow transition-colors text-gray-900">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between mt-1 mb-2">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox"
+                            class="rounded border-gray-300 text-black focus:ring-black w-4 h-4 cursor-pointer">
+                        <span class="text-sm text-gray-600 font-medium">Lembrar-me</span>
+                    </label>
+                    <a href="#"
+                        class="text-sm font-semibold text-gray-900 hover:text-gray-600 transition-colors">Esqueceu a
+                        senha?</a>
+                </div>
+
+                <button type="submit" id="submitBtn"
+                    class="w-full bg-black text-white font-semibold flex items-center justify-center gap-2 py-3 rounded-xl hover:bg-gray-800 transition-colors shadow-sm">
+                    Entrar no Painel <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+            </form>
+        </div>
+
+        <p class="text-center text-sm text-gray-500 font-medium mt-8">
+            <a href="landing.html" class="hover:text-black transition-colors flex items-center justify-center gap-1"><i
+                    data-lucide="arrow-left" class="w-3 h-3"></i> Voltar para Home</a>
+        </p>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        const loginForm = document.getElementById('loginForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const errorText = document.getElementById('errorText');
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            submitBtn.innerHTML = '<span class="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline-block"></span> Entrando...';
+            submitBtn.disabled = true;
+            errorMsg.classList.add('hidden');
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.status === 'success') {
+                    // Save session token
+                    localStorage.setItem('rh_access_token', data.data.session.access_token);
+                    localStorage.setItem('rh_user_email', email);
+                    window.location.href = 'index.html';
+                } else {
+                    errorText.textContent = data.detail || 'E-mail ou senha inválidos.';
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                errorText.textContent = 'Servidor indisponível. Tente novamente.';
+                errorMsg.classList.remove('hidden');
+            } finally {
+                submitBtn.innerHTML = 'Entrar no Painel <i data-lucide="arrow-right" class="w-4 h-4"></i>';
+                submitBtn.disabled = false;
+                lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+
+</html>

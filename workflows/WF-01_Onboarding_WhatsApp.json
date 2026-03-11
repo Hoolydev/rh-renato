@@ -1,0 +1,137 @@
+{
+  "name": "WF-01: Onboarding WhatsApp",
+  "nodes": [
+    {
+      "id": "node-wf01-01",
+      "name": "Webhook Evolution API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-onboarding",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf01-02",
+      "name": "GET Sessao Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/sessoes_whatsapp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_KEY }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "phone", "value": "=eq.{{ $json.body.data.key.remoteJid.replace('@s.whatsapp.net','') || $json.body.from || '' }}" },
+            { "name": "ativo", "value": "eq.true" },
+            { "name": "limit", "value": "1" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf01-03",
+      "name": "Processar Conversa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "// Extrai dados da mensagem Evolution API\nconst webhookBody = $('Webhook Evolution API').first().json.body || $('Webhook Evolution API').first().json;\nconst phone = (webhookBody?.data?.key?.remoteJid || webhookBody?.data?.from || '').replace('@s.whatsapp.net', '').replace(/\\D/g, '');\nconst message = webhookBody?.data?.message?.conversation || webhookBody?.data?.message?.extendedTextMessage?.text || webhookBody?.message || '';\nconst hasMedia = ['documentMessage', 'imageMessage'].includes(webhookBody?.data?.messageType);\n\n// Dados da sessão do Supabase\nconst sessaoArr = $input.all();\nconst sessao = sessaoArr.length > 0 && sessaoArr[0].json?.id ? sessaoArr[0].json : null;\nconst step = sessao?.step ?? 0;\nconst dados = sessao?.dados_candidato ? (typeof sessao.dados_candidato === 'string' ? JSON.parse(sessao.dados_candidato) : sessao.dados_candidato) : {};\n\nconst SUPABASE_URL = $vars.SUPABASE_URL;\nconst SUPABASE_KEY = $vars.SUPABASE_KEY;\nconst GOOGLE_KEY = $vars.GOOGLE_MAPS_API_KEY;\nconst ENDERECO_SEDE = $vars.ENDERECO_SEDE;\nconst RAIO_MAX = parseInt($vars.RAIO_MAXIMO_KM || '15');\nconst ANTHROPIC_KEY = $vars.ANTHROPIC_API_KEY;\n\nasync function supabaseRequest(method, path, body) {\n  const resp = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {\n    method,\n    headers: {\n      'apikey': SUPABASE_KEY,\n      'Authorization': `Bearer ${SUPABASE_KEY}`,\n      'Content-Type': 'application/json',\n      'Prefer': 'resolution=merge-duplicates,return=representation'\n    },\n    body: body ? JSON.stringify(body) : undefined\n  });\n  return resp.json();\n}\n\nlet resposta = '';\nlet nextStep = step;\nlet novosDados = { ...dados };\n\n// Comando SAIR (LGPD)\nif (message.trim().toUpperCase() === 'SAIR') {\n  await supabaseRequest('DELETE', `candidatos?whatsapp=eq.${phone}`, null);\n  await supabaseRequest('DELETE', `sessoes_whatsapp?phone=eq.${phone}`, null);\n  return [{ json: { phone, resposta: '🗑️ Seus dados foram removidos conforme solicitado (LGPD). Obrigado e até logo! 👋', nextStep: -1, novosDados: {} } }];\n}\n\nswitch(step) {\n  case 0:\n    resposta = `Olá! 👋 Sou o assistente de seleção de talentos.\\n\\n_Seus dados serão tratados conforme a LGPD. Digite *SAIR* a qualquer momento para removê-los._\\n\\nPara iniciar seu cadastro, qual é o seu *CPF*? (usado apenas para evitar duplicatas)`;\n    nextStep = 1;\n    break;\n\n  case 1: {\n    const cpf = message.replace(/\\D/g, '');\n    if (cpf.length !== 11) {\n      resposta = '❌ CPF inválido. Por favor, informe seu CPF com 11 dígitos (apenas números):';\n      nextStep = 1;\n    } else {\n      novosDados.cpf_raw = cpf;\n      // Verifica duplicata no Supabase\n      const dupCheck = await fetch(`${SUPABASE_URL}/rest/v1/candidatos?cpf_raw=eq.${cpf}&select=id,nome`, {\n        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }\n      });\n      const dupData = await dupCheck.json();\n      const jaExiste = Array.isArray(dupData) && dupData.length > 0;\n      resposta = `✅ ${jaExiste ? 'Identificamos seu cadastro! Vamos atualizar suas informações.' : 'CPF registrado!'}\\n\\nQual é o seu *nome completo* e o *cargo* que você está buscando?\\n_(ex: João Silva | Auxiliar Administrativo)_`;\n      if (jaExiste) novosDados.candidato_id = dupData[0].id;\n      nextStep = 2;\n    }\n    break;\n  }\n\n  case 2: {\n    const parts = message.split('|');\n    novosDados.nome = parts[0]?.trim() || message.trim();\n    novosDados.cargo_desejado = parts[1]?.trim() || '';\n    resposta = `Ótimo, *${novosDados.nome}*! 😊\\n\\nAgora preciso saber sua localização para verificar a proximidade com o posto de trabalho.\\n\\nPor favor, informe seu *endereço completo* (Rua, Número, Bairro, Cidade, CEP) 📍`;\n    nextStep = 3;\n    break;\n  }\n\n  case 3: {\n    // Geolocalização via Google Maps\n    try {\n      const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(message)}&key=${GOOGLE_KEY}&language=pt-BR&region=br`;\n      const geoResp = await fetch(geoUrl);\n      const geoData = await geoResp.json();\n      const geocode = geoData.results?.[0];\n      const lat = geocode?.geometry?.location?.lat || 0;\n      const lng = geocode?.geometry?.location?.lng || 0;\n      const enderecoFormatado = geocode?.formatted_address || message;\n\n      const distUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(enderecoFormatado)}&destinations=${encodeURIComponent(ENDERECO_SEDE)}&key=${GOOGLE_KEY}&language=pt-BR&mode=driving`;\n      const distResp = await fetch(distUrl);\n      const distData = await distResp.json();\n      const element = distData.rows?.[0]?.elements?.[0];\n      const distKm = parseFloat(((element?.distance?.value || 999999) / 1000).toFixed(1));\n      const durMin = Math.round((element?.duration?.value || 0) / 60);\n\n      novosDados.endereco = enderecoFormatado;\n      novosDados.lat = lat;\n      novosDados.lng = lng;\n      novosDados.distancia_sede_km = distKm;\n\n      if (distKm > RAIO_MAX) {\n        novosDados.status = 'fora_raio';\n        resposta = `📍 Localização: *${enderecoFormatado}*\\n🏢 Posto de trabalho: ${ENDERECO_SEDE}\\n📏 Distância: *${distKm} km* — Raio máximo: ${RAIO_MAX} km\\n\\nInfelizmente esta vaga exige morar em até ${RAIO_MAX} km do local de trabalho. 😔\\n\\nManterei seu contato para oportunidades na sua região! 🍀`;\n        nextStep = -1;\n        await supabaseRequest('POST', 'candidatos', { ...novosDados, whatsapp: phone, fonte: 'whatsapp', updated_at: new Date().toISOString() });\n      } else {\n        resposta = `✅ *Localização validada!* Você está a *${distKm} km* do posto (~${durMin} min).\\n\\nQuantos *anos de experiência* você tem na área? Descreva brevemente suas últimas experiências:`;\n        nextStep = 4;\n      }\n    } catch(e) {\n      resposta = 'Não consegui validar seu endereço. Por favor, informe novamente (Rua, Número, Bairro, Cidade, CEP):';\n      nextStep = 3;\n    }\n    break;\n  }\n\n  case 4:\n    novosDados.experiencia_descricao = message;\n    novosDados.anos_experiencia = parseInt(message.match(/\\d+/)?.[0] || '0');\n    resposta = `Registrei! 💼\\n\\nQual é sua *formação acadêmica*?\\n_(ex: Ensino Médio Completo, Técnico em Administração, Superior em Gestão)_`;\n    nextStep = 5;\n    break;\n\n  case 5:\n    novosDados.formacao = message;\n    resposta = `📚 Formação registrada!\\n\\nQual sua *disponibilidade de horário* e *pretensão salarial*?\\n_(ex: Manhã e tarde | R$ 2.000 – R$ 2.500)_`;\n    nextStep = 6;\n    break;\n\n  case 6: {\n    const p = message.split('|');\n    novosDados.disponibilidade_horario = p[0]?.trim() || message;\n    novosDados.pretensao_salarial = p[1]?.trim() || '';\n    resposta = `Por fim, você pode enviar seu *currículo em PDF*? 📄\\n\\nCaso não tenha, não se preocupe — já coletamos suas informações! 😊\\n_(Se tiver, envie o arquivo aqui no chat. Se não, responda: sem curriculo)_`;\n    nextStep = 7;\n    break;\n  }\n\n  case 7: {\n    // Extração via Claude e cálculo de score\n    let curriculoJSON = {};\n    try {\n      const claudeBody = {\n        model: 'claude-haiku-4-5-20251001',\n        max_tokens: 1024,\n        system: 'Você é especialista em análise de currículos. Extraia dados e retorne SOMENTE JSON válido.',\n        messages: [{ role: 'user', content: `Extraia dados do currículo/informações do candidato em JSON: {nome, email, telefone, formacao_nivel, anos_experiencia (número), habilidades_array (lista), idiomas_array, certificacoes_array, resumo_profissional}\\n\\nInformações disponíveis: ${JSON.stringify(novosDados)}\\nMensagem: ${message}` }]\n      };\n      const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {\n        method: 'POST',\n        headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },\n        body: JSON.stringify(claudeBody)\n      });\n      const claudeData = await claudeResp.json();\n      const text = claudeData.content?.[0]?.text || '{}';\n      curriculoJSON = JSON.parse(text.replace(/```json\\n?|```/g, '').trim());\n    } catch(e) {}\n\n    // Score\n    const distKm = parseFloat(novosDados.distancia_sede_km || 99);\n    let scoreGeo = distKm <= 8 ? 100 : distKm <= 10 ? 90 : distKm <= 12 ? 80 : distKm <= 13 ? 70 : distKm <= 14 ? 55 : distKm <= 15 ? 40 : 0;\n    const anosExp = parseInt(curriculoJSON.anos_experiencia || novosDados.anos_experiencia || 0);\n    const formNivel = (curriculoJSON.formacao_nivel || novosDados.formacao || '').toLowerCase();\n    let scoreTec = 50 + (anosExp >= 3 ? 20 : anosExp >= 1 ? 10 : 0) + (formNivel.includes('superior') || formNivel.includes('mba') ? 20 : formNivel.includes('técnico') || formNivel.includes('tecnico') ? 10 : 0);\n    scoreTec = Math.min(100, scoreTec);\n    const scoreComp = 70;\n    const scoreFinal = Math.round(scoreTec * 0.5 + scoreGeo * 0.3 + scoreComp * 0.15);\n    const aprovado = scoreFinal >= 60 && scoreGeo > 0;\n    const status = aprovado ? 'qualificado' : 'banco_espera';\n\n    const candidatoData = {\n      ...novosDados,\n      ...(curriculoJSON.nome && { nome: curriculoJSON.nome }),\n      ...(curriculoJSON.email && { email: curriculoJSON.email }),\n      whatsapp: phone,\n      habilidades_array: curriculoJSON.habilidades_array || [],\n      idiomas_array: curriculoJSON.idiomas_array || [],\n      certificacoes_array: curriculoJSON.certificacoes_array || [],\n      score_medio: scoreFinal,\n      status,\n      fonte: 'whatsapp',\n      updated_at: new Date().toISOString()\n    };\n    await supabaseRequest('POST', 'candidatos', candidatoData);\n\n    const nome = novosDados.nome || 'Candidato';\n    resposta = aprovado\n      ? `✅ *Cadastro realizado com sucesso, ${nome}!*\\n\\n📍 Localização validada — ${distKm} km do posto de trabalho.\\n🎯 Score de aderência: *${scoreFinal}/100*\\n\\n📬 Você será notificado quando houver vagas compatíveis. Boa sorte! 🍀`\n      : `📋 *Dados registrados, ${nome}!*\\n\\nSeu perfil foi salvo em nosso banco de talentos (score: ${scoreFinal}/100). Entraremos em contato quando houver vagas compatíveis! 🌟`;\n    nextStep = -1;\n    break;\n  }\n\n  default:\n    resposta = 'Obrigado! Seu cadastro já foi finalizado. Se quiser atualizar seus dados, entre em contato conosco. 😊';\n    nextStep = -1;\n}\n\nreturn [{ json: { phone, resposta, nextStep, novosDados } }];"
+      }
+    },
+    {
+      "id": "node-wf01-04",
+      "name": "Salvar Sessao Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/sessoes_whatsapp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, step: $json.nextStep, dados_candidato: JSON.stringify($json.novosDados), ativo: $json.nextStep >= 0, updated_at: new Date().toISOString() }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf01-05",
+      "name": "Enviar Mensagem WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.EVOLUTION_API_URL }}/message/sendText/{{ $vars.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.EVOLUTION_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Processar Conversa').first().json.phone + '@s.whatsapp.net', options: { delay: 1200, presence: 'composing' }, textMessage: { text: $('Processar Conversa').first().json.resposta } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf01-06",
+      "name": "Resposta 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\" }",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Evolution API": {
+      "main": [[{ "node": "GET Sessao Supabase", "type": "main", "index": 0 }]]
+    },
+    "GET Sessao Supabase": {
+      "main": [[{ "node": "Processar Conversa", "type": "main", "index": 0 }]]
+    },
+    "Processar Conversa": {
+      "main": [[{ "node": "Salvar Sessao Supabase", "type": "main", "index": 0 }]]
+    },
+    "Salvar Sessao Supabase": {
+      "main": [[{ "node": "Enviar Mensagem WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "Enviar Mensagem WhatsApp": {
+      "main": [[{ "node": "Resposta 200 OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "tags": [{ "name": "RH" }, { "name": "WhatsApp" }],
+  "pinData": {}
+}

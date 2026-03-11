@@ -1,0 +1,109 @@
+{
+  "name": "WF-02: Parsing Email Candidatos",
+  "nodes": [
+    {
+      "id": "node-wf02-01",
+      "name": "IMAP Email Vagas",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "credentials": {
+        "imap": {
+          "id": "IMAP_CREDENTIAL_ID",
+          "name": "IMAP - vagas@empresa.com"
+        }
+      },
+      "parameters": {
+        "mailbox": "INBOX",
+        "action": "read",
+        "downloadAttachments": true,
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "customEmailConfig": "[\"UNSEEN\"]"
+        }
+      }
+    },
+    {
+      "id": "node-wf02-02",
+      "name": "Extrair e Processar Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "const email = $input.first().json;\n\n// Filtra apenas emails com currículo ou candidatura\nconst subject = email.subject || '';\nconst hasPdf = (email.attachments || []).some(a => a.contentType === 'application/pdf' || (a.filename || '').toLowerCase().endsWith('.pdf'));\nconst isCandidatura = /curriculo|curriculum|cv |vaga|candidatura|candidato|seleção/i.test(subject);\n\nif (!hasPdf && !isCandidatura) {\n  return []; // ignora email\n}\n\nconst fromStr = email.from || '';\nconst emailMatch = fromStr.match(/[\\w.-]+@[\\w.-]+\\.\\w+/);\nconst nameMatch = fromStr.match(/^\"?([^\"<]+)\"?\\s*</);\n\nconst remetenteName = nameMatch?.[1]?.trim() || fromStr.split('@')[0];\nconst remetenteEmail = emailMatch?.[0] || '';\n\nconst bodyText = (email.textHtml?.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim() || email.text || '').substring(0, 3000);\n\nconst pdfAttachment = (email.attachments || []).find(a => a.contentType === 'application/pdf' || (a.filename || '').toLowerCase().endsWith('.pdf'));\n\nreturn [{ json: { remetenteName, remetenteEmail, subject, bodyText, hasPdf: !!pdfAttachment, emailDate: email.date || new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "node-wf02-03",
+      "name": "Claude Extrair Curriculo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $vars.ANTHROPIC_API_KEY }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1500, system: 'Você é especialista em análise de currículos. Extraia dados e retorne SOMENTE JSON válido sem markdown.', messages: [{ role: 'user', content: 'Analise e extraia em JSON: {nome, email, telefone, cpf, endereco_completo, cidade, estado, cep, formacao_nivel, formacao_descricao, anos_experiencia, cargo_atual_desejado, experiencias:[{cargo,empresa,periodo}], habilidades_array:[], idiomas_array:[], certificacoes_array:[], disponibilidade_imediata, pretensao_salarial, linkedin_url, resumo_profissional}\\n\\nE-mail de: ' + $json.remetenteName + ' <' + $json.remetenteEmail + '>\\nAssunto: ' + $json.subject + '\\nCorpo: ' + $json.bodyText }] }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf02-04",
+      "name": "Processar Score e Salvar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "parameters": {
+        "jsCode": "const emailData = $('Extrair e Processar Email').first().json;\nconst claudeResp = $input.first().json;\n\nconst SUPABASE_URL = $vars.SUPABASE_URL;\nconst SUPABASE_KEY = $vars.SUPABASE_KEY;\nconst GOOGLE_KEY = $vars.GOOGLE_MAPS_API_KEY;\nconst ENDERECO_SEDE = $vars.ENDERECO_SEDE;\nconst RAIO_MAX = parseInt($vars.RAIO_MAXIMO_KM || '15');\n\n// Parsear resposta Claude\nlet curriculo = {};\ntry {\n  const text = claudeResp.content?.[0]?.text || '{}';\n  curriculo = JSON.parse(text.replace(/```json\\n?|```/g, '').trim());\n} catch(e) {\n  curriculo = { nome: emailData.remetenteName, email: emailData.remetenteEmail };\n}\n\ncurriculo.nome = curriculo.nome || emailData.remetenteName;\ncurriculo.email = curriculo.email || emailData.remetenteEmail;\ncurriculo.cargo_desejado = curriculo.cargo_atual_desejado || emailData.subject;\n\n// Geolocalização\nlet scoreGeo = 50, distKm = 0, durMin = 0, enderecoFormatado = '', lat = 0, lng = 0, dentroRaio = true;\nconst endereco = [curriculo.endereco_completo, curriculo.cidade, curriculo.estado, curriculo.cep].filter(Boolean).join(', ');\n\nif (endereco && GOOGLE_KEY) {\n  try {\n    const geoResp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(endereco)}&key=${GOOGLE_KEY}&language=pt-BR&region=br`);\n    const geoData = await geoResp.json();\n    const geocode = geoData.results?.[0];\n    lat = geocode?.geometry?.location?.lat || 0;\n    lng = geocode?.geometry?.location?.lng || 0;\n    enderecoFormatado = geocode?.formatted_address || endereco;\n\n    const distResp = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(enderecoFormatado)}&destinations=${encodeURIComponent(ENDERECO_SEDE)}&key=${GOOGLE_KEY}&language=pt-BR&mode=driving`);\n    const distData = await distResp.json();\n    const el = distData.rows?.[0]?.elements?.[0];\n    distKm = parseFloat(((el?.distance?.value || 999999) / 1000).toFixed(1));\n    durMin = Math.round((el?.duration?.value || 0) / 60);\n    dentroRaio = distKm <= RAIO_MAX;\n    scoreGeo = distKm <= 8 ? 100 : distKm <= 10 ? 90 : distKm <= 12 ? 80 : distKm <= 13 ? 70 : distKm <= 14 ? 55 : distKm <= 15 ? 40 : 0;\n  } catch(e) {}\n}\n\n// Score técnico\nconst anosExp = parseInt(curriculo.anos_experiencia || 0);\nconst formNivel = (curriculo.formacao_nivel || '').toLowerCase();\nlet scoreTec = 50 + (anosExp >= 3 ? 20 : anosExp >= 1 ? 10 : 0) + (formNivel.includes('superior') || formNivel.includes('mba') ? 20 : formNivel.includes('técnico') || formNivel.includes('tecnico') ? 10 : 0);\nscoreTec = Math.min(100, scoreTec);\nconst scoreComp = 65;\nconst scoreFinal = Math.round(scoreTec * 0.5 + scoreGeo * 0.3 + scoreComp * 0.15);\nconst aprovado = scoreFinal >= 60 && dentroRaio;\nconst status = !dentroRaio ? 'fora_raio' : (aprovado ? 'qualificado' : 'banco_espera');\n\n// Salvar no Supabase\nconst candidatoData = {\n  nome: curriculo.nome,\n  email: curriculo.email,\n  telefone: curriculo.telefone || '',\n  cpf_raw: curriculo.cpf || '',\n  endereco_completo: enderecoFormatado || endereco,\n  latitude: lat,\n  longitude: lng,\n  distancia_sede_km: distKm,\n  cargo_desejado: curriculo.cargo_desejado,\n  formacao: `${curriculo.formacao_nivel || ''} - ${curriculo.formacao_descricao || ''}`.trim(),\n  anos_experiencia: anosExp,\n  pretensao_salarial: curriculo.pretensao_salarial || '',\n  disponibilidade_imediata: !!curriculo.disponibilidade_imediata,\n  habilidades_array: curriculo.habilidades_array || [],\n  idiomas_array: (curriculo.idiomas_array || []).map(i => typeof i === 'object' ? `${i.idioma} - ${i.nivel}` : i),\n  certificacoes_array: curriculo.certificacoes_array || [],\n  curriculo_texto_extraido: JSON.stringify(curriculo.experiencias || []),\n  linkedin_url: curriculo.linkedin_url || '',\n  score_medio: scoreFinal,\n  status,\n  fonte: 'email',\n  updated_at: new Date().toISOString()\n};\n\ntry {\n  await fetch(`${SUPABASE_URL}/rest/v1/candidatos`, {\n    method: 'POST',\n    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=representation' },\n    body: JSON.stringify(candidatoData)\n  });\n} catch(e) {}\n\n// Analytics\ntry {\n  await fetch(`${SUPABASE_URL}/rest/v1/analytics_triagem`, {\n    method: 'POST',\n    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },\n    body: JSON.stringify({ canal: 'email', candidato_email: curriculo.email, status_triagem: status, score_final: scoreFinal, dentro_raio: dentroRaio, created_at: new Date().toISOString() })\n  });\n} catch(e) {}\n\n// Montar e-mail de retorno\nconst empresa = $vars.EMPRESA_NOME || 'nossa empresa';\nconst cargo = curriculo.cargo_desejado || 'a vaga';\nlet statusMsg;\nif (!dentroRaio) {\n  statusMsg = `⚠️ Seu endereço está a ${distKm} km do local (raio máximo: ${RAIO_MAX} km). Cadastro mantido para oportunidades na sua região.`;\n} else {\n  statusMsg = `✅ Aderência técnica: ${scoreFinal}/100. Localização validada: ${distKm} km do posto (${durMin} min). Caso seu perfil avance, contato via WhatsApp em até 48h.`;\n}\n\nreturn [{ json: { to: curriculo.email, nome: curriculo.nome, cargo, empresa, statusMsg, scoreFinal, distKm, dentroRaio } }];"
+      }
+    },
+    {
+      "id": "node-wf02-05",
+      "name": "Enviar Email Retorno",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1120, 300],
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CREDENTIAL_ID",
+          "name": "SMTP - vagas@empresa.com"
+        }
+      },
+      "parameters": {
+        "fromEmail": "={{ $vars.EMAIL_VAGAS }}",
+        "toEmail": "={{ $json.to }}",
+        "subject": "=✅ Recebemos seu currículo — Vaga {{ $json.cargo }} | {{ $json.empresa }}",
+        "emailFormat": "html",
+        "html": "=<h3>Olá, {{ $json.nome }}!</h3><p>Recebemos seu currículo para a vaga de <strong>{{ $json.cargo }}</strong> em {{ $json.empresa }}.</p><p>{{ $json.statusMsg }}</p><hr><p>Para remover seus dados (LGPD), responda com assunto: <strong>REMOVER DADOS</strong></p><p>Atenciosamente,<br><strong>Equipe de RH — {{ $json.empresa }}</strong></p>",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "IMAP Email Vagas": {
+      "main": [[{ "node": "Extrair e Processar Email", "type": "main", "index": 0 }]]
+    },
+    "Extrair e Processar Email": {
+      "main": [[{ "node": "Claude Extrair Curriculo", "type": "main", "index": 0 }]]
+    },
+    "Claude Extrair Curriculo": {
+      "main": [[{ "node": "Processar Score e Salvar", "type": "main", "index": 0 }]]
+    },
+    "Processar Score e Salvar": {
+      "main": [[{ "node": "Enviar Email Retorno", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "tags": [{ "name": "RH" }, { "name": "Email" }],
+  "pinData": {}
+}

@@ -1,0 +1,61 @@
+{
+  "name": "WF-04: Matching Engine - Top 3",
+  "nodes": [
+    {
+      "id": "node-wf04-01",
+      "name": "Webhook Matching Engine",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "matching-engine",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf04-02",
+      "name": "Buscar Candidatos e Calcular Top 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "const vaga = $input.first().json;\nconst SUPABASE_URL = $vars.SUPABASE_URL;\nconst SUPABASE_KEY = $vars.SUPABASE_KEY;\nconst ANTHROPIC_KEY = $vars.ANTHROPIC_API_KEY;\n\n// Função de distância Haversine\nfunction haversine(lat1, lng1, lat2, lng2) {\n  const R = 6371;\n  const dLat = (lat2 - lat1) * Math.PI / 180;\n  const dLng = (lng2 - lng1) * Math.PI / 180;\n  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;\n  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));\n}\n\n// Buscar candidatos qualificados/banco_espera\nconst candidatosResp = await fetch(`${SUPABASE_URL}/rest/v1/candidatos?status=in.(qualificado,banco_espera)&select=*`, {\n  headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }\n});\nconst candidatos = await candidatosResp.json();\n\nif (!Array.isArray(candidatos) || candidatos.length === 0) {\n  return [{ json: { semCandidatos: true, vaga, total: 0, top3: [] } }];\n}\n\nconst latSede = parseFloat(vaga.latitude_sede || 0);\nconst lngSede = parseFloat(vaga.longitude_sede || 0);\nconst raioMax = parseFloat(vaga.raio_maximo_km || 15);\n\n// Filtrar por raio geográfico\nconst candidatosFiltrados = candidatos.filter(c => {\n  const lat = parseFloat(c.latitude || 0);\n  const lng = parseFloat(c.longitude || 0);\n  if (lat === 0 && lng === 0) return true;\n  const dist = haversine(latSede, lngSede, lat, lng);\n  c._distancia_km = parseFloat(dist.toFixed(1));\n  return dist <= raioMax;\n}).map(c => {\n  if (!c._distancia_km) c._distancia_km = parseFloat(c.distancia_sede_km || 0);\n  return c;\n});\n\nif (candidatosFiltrados.length === 0) {\n  return [{ json: { semCandidatos: true, vaga, total: candidatos.length, top3: [] } }];\n}\n\n// Score rápido com Claude (em batch para economizar chamadas)\n// Prepara lista resumida dos candidatos para o Claude\nconst candidatosResumidos = candidatosFiltrados.slice(0, 30).map(c => ({\n  id: c.id,\n  nome: c.nome,\n  cargo: c.cargo_desejado,\n  formacao: c.formacao,\n  anos_exp: c.anos_experiencia,\n  habilidades: (c.habilidades_array || []).slice(0, 5),\n  distancia_km: c._distancia_km,\n  pretensao: c.pretensao_salarial\n}));\n\nconst claudeBody = {\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 3000,\n  system: 'Você é um recrutador sênior. Avalie candidatos e retorne SOMENTE JSON array válido.',\n  messages: [{ role: 'user', content: `Avalie cada candidato para a vaga abaixo e retorne um JSON array com TODOS os candidatos, cada um com: {id, score_tecnico:0-100, score_geo:0-100, score_comportamental:0-100, score_final:(tecnico*0.5+geo*0.3+comp*0.15), aprovado:bool(>=60 e geo>0), justificativa:\"1 frase\", pontos_fortes:[\"\",\"\",\"\"], pontos_atencao:[\"\"]}\\n\\nVAGA:\\n${JSON.stringify({titulo:vaga.titulo, requisitos_obrigatorios:vaga.requisitos_obrigatorios, requisitos_desejados:vaga.requisitos_desejados, salario_min:vaga.salario_min, salario_max:vaga.salario_max, raio_maximo_km:raioMax})}\\n\\nREGRA geo: ≤8km=100, 8-12km=70-90, 12-15km=40-69, >15km=0(reprovado)\\n\\nCANDIDATOS:\\n${JSON.stringify(candidatosResumidos)}` }]\n};\n\nlet scoresMap = {};\ntry {\n  const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {\n    method: 'POST',\n    headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },\n    body: JSON.stringify(claudeBody)\n  });\n  const claudeData = await claudeResp.json();\n  const text = claudeData.content?.[0]?.text || '[]';\n  const scores = JSON.parse(text.replace(/```json\\n?|```/g, '').trim());\n  if (Array.isArray(scores)) {\n    scores.forEach(s => { scoresMap[s.id] = s; });\n  }\n} catch(e) {\n  // fallback: score simples\n  candidatosFiltrados.forEach(c => {\n    const distKm = c._distancia_km;\n    const scoreGeo = distKm <= 8 ? 100 : distKm <= 10 ? 90 : distKm <= 12 ? 80 : distKm <= 14 ? 60 : distKm <= 15 ? 40 : 0;\n    const anosExp = parseInt(c.anos_experiencia || 0);\n    const scoreTec = Math.min(100, 50 + (anosExp >= 3 ? 20 : anosExp >= 1 ? 10 : 0));\n    const scoreFinal = Math.round(scoreTec * 0.5 + scoreGeo * 0.3 + 65 * 0.15);\n    scoresMap[c.id] = { id: c.id, score_tecnico: scoreTec, score_geo: scoreGeo, score_comportamental: 65, score_final: scoreFinal, aprovado: scoreFinal >= 60 && scoreGeo > 0, justificativa: 'Score calculado automaticamente.', pontos_fortes: [], pontos_atencao: [] };\n  });\n}\n\n// Juntar scores com candidatos e selecionar top 3\nconst candidatosComScore = candidatosFiltrados.map(c => ({\n  ...c,\n  ...(scoresMap[c.id] || {}),\n  candidato_distancia_km: c._distancia_km\n})).filter(c => c.score_final >= 60 && (c.score_geo || 0) > 0);\n\ncandidatosComScore.sort((a, b) => (b.score_final || 0) - (a.score_final || 0));\nconst top3 = candidatosComScore.slice(0, 3).map((c, i) => ({ ...c, posicao_ranking: i + 1 }));\n\n// Salvar candidaturas no Supabase\nif (vaga.vaga_id) {\n  for (const c of top3) {\n    try {\n      await fetch(`${SUPABASE_URL}/rest/v1/candidaturas`, {\n        method: 'POST',\n        headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },\n        body: JSON.stringify({\n          candidato_id: c.id, vaga_id: vaga.vaga_id,\n          score_tecnico: c.score_tecnico, score_geo: c.score_geo,\n          score_comportamental: c.score_comportamental, score_final: c.score_final,\n          posicao_ranking: c.posicao_ranking, justificativa_ia: c.justificativa,\n          pontos_fortes: c.pontos_fortes || [], pontos_atencao: c.pontos_atencao || [],\n          status: 'shortlist', created_at: new Date().toISOString()\n        })\n      });\n    } catch(e) {}\n  }\n}\n\nreturn [{ json: { vaga, top3, total_avaliados: candidatosFiltrados.length, semCandidatos: top3.length === 0 } }];"
+      }
+    },
+    {
+      "id": "node-wf04-03",
+      "name": "Disparar Notify WF-05",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.N8N_BASE_URL }}/webhook/notify-output",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Matching Engine": {
+      "main": [[{ "node": "Buscar Candidatos e Calcular Top 3", "type": "main", "index": 0 }]]
+    },
+    "Buscar Candidatos e Calcular Top 3": {
+      "main": [[{ "node": "Disparar Notify WF-05", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "tags": [{ "name": "RH" }, { "name": "Matching" }, { "name": "IA" }],
+  "pinData": {}
+}
