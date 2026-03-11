@@ -93,8 +93,8 @@ async def zapi_webhook(request: Request):
     payload = await request.json()
     
     # Exemplo genérico de como receber mensagem Z-API
-    # Verifica se a mensagem de texto chegou
-    if "isGroup" in payload and not payload["isGroup"]:
+    # Verifica se a mensagem de texto chegou e se NÃO foi enviada pela própria IA (fromMe)
+    if "isGroup" in payload and not payload["isGroup"] and not payload.get("fromMe", False):
         texto_recebido = payload.get("text", {}).get("message", "")
         remetente = payload.get("phone", "")
         
