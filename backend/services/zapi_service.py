@@ -9,7 +9,9 @@ def get_zapi_credentials():
 
 def enviar_mensagem_texto(telefone: str, mensagem: str):
     instance, token, client_token = get_zapi_credentials()
-    if not instance or not token: return
+    if not instance or not token:
+        print("ERRO: Credenciais do Z-API ausentes nas variáveis de ambiente. A mensagem não será enviada.")
+        return
     
     url = f"https://api.z-api.io/instances/{instance}/token/{token}/send-messages"
     headers = {"Client-Token": client_token, "Content-Type": "application/json"}
@@ -18,14 +20,19 @@ def enviar_mensagem_texto(telefone: str, mensagem: str):
         "message": mensagem
     }
     try:
-        requests.post(url, headers=headers, json=payload)
+        print(f"Enviando mensagem para {telefone} via Z-API ({instance})...")
+        resp = requests.post(url, headers=headers, json=payload)
+        print(f"Z-API Status: {resp.status_code} | Resposta: {resp.text}")
+        resp.raise_for_status()
     except Exception as e:
         print(f"Erro ao enviar Z-API: {e}")
 
 def enviar_audio(telefone: str, path_or_url: str):
     import base64
     instance, token, client_token = get_zapi_credentials()
-    if not instance or not token: return
+    if not instance or not token:
+        print("ERRO: Credenciais do Z-API ausentes nas variáveis de ambiente. O áudio não será enviado.")
+        return
     
     url = f"https://api.z-api.io/instances/{instance}/token/{token}/send-audio"
     headers = {"Client-Token": client_token, "Content-Type": "application/json"}
@@ -43,6 +50,9 @@ def enviar_audio(telefone: str, path_or_url: str):
         "audio": audio_content
     }
     try:
-        requests.post(url, headers=headers, json=payload)
+        print(f"Enviando áudio para {telefone} via Z-API ({instance})...")
+        resp = requests.post(url, headers=headers, json=payload)
+        print(f"Z-API Audio Status: {resp.status_code} | Resposta: {resp.text}")
+        resp.raise_for_status()
     except Exception as e:
         print(f"Erro ao enviar áudio Z-API: {e}")
