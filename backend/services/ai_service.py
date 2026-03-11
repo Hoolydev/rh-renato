@@ -2,6 +2,8 @@ import os
 from openai import OpenAI
 from services.db_service import obter_vagas_ativas
 
+historico_conversas = {}
+
 def obter_client_openai():
     key = os.getenv("OPENAI_API_KEY")
     return OpenAI(api_key=key) if key else None
@@ -41,16 +43,16 @@ Vagas atuais ativas e seus requisitos:
     contexto += "\nLembre-se: Analise as respostas do candidato passo a passo interagindo com ele. Não despeje todas as perguntas de uma vez!"
 
     # Tratamento de Memória Conversacional
-    if remetente not in historico_conversas:
-        historico_conversas[remetente] = [{"role": "system", "content": contexto}]
+    if numero_candidato not in historico_conversas:
+        historico_conversas[numero_candidato] = [{"role": "system", "content": contexto}]
     else:
         # Atualiza o prompt de sistema caso as vagas mudem, mantendo no topo
-        historico_conversas[remetente][0] = {"role": "system", "content": contexto}
+        historico_conversas[numero_candidato][0] = {"role": "system", "content": contexto}
 
-    historico_conversas[remetente].append({"role": "user", "content": mensagem_usuario})
+    historico_conversas[numero_candidato].append({"role": "user", "content": mensagem_usuario})
 
     # Limite simples para não estourar tokens (últimas 15 mensagens + system)
-    messages_para_enviar = [historico_conversas[remetente][0]] + historico_conversas[remetente][-14:]
+    messages_para_enviar = [historico_conversas[numero_candidato][0]] + historico_conversas[numero_candidato][-14:]
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -59,7 +61,7 @@ Vagas atuais ativas e seus requisitos:
     )
 
     resposta = response.choices[0].message.content
-    historico_conversas[remetente].append({"role": "assistant", "content": resposta})
+    historico_conversas[numero_candidato].append({"role": "assistant", "content": resposta})
 
     return resposta
 
