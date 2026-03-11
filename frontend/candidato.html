@@ -1,151 +1,218 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="scroll-smooth">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vagas - RH Talent IA</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    <title>Vagas Abertas - Nexa Gestão</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://unpkg.com/lucide@latest/css/lucide.css" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        /* Candiate Page Specific Styles Override */
-        body {
-            background: #f3f4f6;
-            display: block;
-            padding: 0;
-            min-height: auto;
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
-        .hero-public {
-            text-align: center;
-            padding: 4rem 1rem 2rem 1rem;
+        .job-card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
         }
 
-        .hero-public h1 {
-            font-size: 3rem;
-            font-weight: 800;
-            color: #111;
-            margin-bottom: 1rem;
-            letter-spacing: -1px;
-        }
-
-        .hero-public p {
-            font-size: 1.1rem;
-            color: #6b7280;
-            max-width: 600px;
-            margin: 0 auto;
-            line-height: 1.5;
-        }
-
-        .public-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-
-        .public-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1.5rem 2rem;
-            background: white;
-            border-bottom: 1px solid var(--border);
+        .gradient-bg {
+            background: radial-gradient(circle at 0% 0%, #f9fafb 0%, #f3f4f6 100%);
         }
     </style>
 </head>
 
-<body>
+<body class="bg-[#F9FAFB] font-sans text-slate-900 selection:bg-black selection:text-white">
 
-    <header class="public-header">
-        <div class="logo">
-            <div class="logo-mark" style="background-color: var(--bg-dark); color:white;"><i data-lucide="bot"></i>
+    <!-- Simple Header -->
+    <nav
+        class="sticky top-0 z-50 glass-effect border-b border-gray-100 h-16 flex items-center justify-between px-6 md:px-12">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white font-bold text-base">
+                RH
             </div>
-            <h2>RH Talent <span style="font-weight: 300;">IA</span></h2>
+            <span class="font-bold tracking-tight text-md">Talent IA</span>
         </div>
-        <div>
-            <span style="font-size: 0.9rem; font-weight: 500; color:var(--text-muted)">Portal de Vagas</span>
+        <div class="hidden md:block">
+            <span class="text-xs font-bold uppercase tracking-widest text-gray-400">Portal do Candidato</span>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="py-16 md:py-24 px-6 text-center border-b border-gray-100 bg-white">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-4xl md:text-6xl font-black tracking-tight mb-6">
+                Encontre seu próximo <span
+                    class="bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-500">desafio</span>
+            </h1>
+            <p class="text-gray-500 text-lg md:text-xl font-medium max-w-2xl mx-auto leading-relaxed">
+                Explore as oportunidades em aberto e candidate-se agora. Nossa IA Zora guiará seu processo via WhatsApp
+                de forma rápida e humanizada.
+            </p>
         </div>
     </header>
 
-    <div class="hero-public">
-        <h1>Encontre seu próximo desafio</h1>
-        <p>Abaixo estão as vagas disponíveis no momento. Candidate-se enviando seu currículo pelo WhatsApp ou utilizando
-            nossa Inteligência Artificial.</p>
-    </div>
-
-    <div class="public-container">
-        <!-- Main Grid -->
-        <div class="jobs-grid" id="jobsGridPublic">
-            <!-- Rendered by JS -->
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-12 px-6 md:px-12 min-h-[60vh]">
+        <!-- Search & Info Bar -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+            <h2 class="text-2xl font-bold">Vagas Disponíveis</h2>
+            <div class="relative w-full md:w-80">
+                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                <input type="text" id="jobSearch" placeholder="Buscar por cargo ou cidade..."
+                    class="w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-black/5 focus:border-gray-400 transition-all">
+            </div>
         </div>
-    </div>
 
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script>lucide.createIcons();</script>
-    <script src="app.js"></script>
+        <!-- Grid Container -->
+        <div id="jobsGridPublic" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- Loader -->
+            <div id="loader" class="col-span-full py-20 flex flex-col items-center gap-4">
+                <div class="w-10 h-10 border-4 border-gray-200 border-t-black rounded-full animate-spin"></div>
+                <p class="text-gray-400 font-medium">Carregando oportunidades...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-12 border-t border-gray-100 bg-white px-6">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            <p class="text-sm text-gray-400 font-medium">&copy; 2026 Nexa Gestão - RH Talent IA</p>
+            <div class="flex gap-4">
+                <a href="#" class="text-gray-400 hover:text-black transition-colors transform hover:scale-110"><i
+                        data-lucide="linkedin" class="w-5 h-5"></i></a>
+                <a href="#" class="text-gray-400 hover:text-black transition-colors transform hover:scale-110"><i
+                        data-lucide="instagram" class="w-5 h-5"></i></a>
+            </div>
+        </div>
+    </footer>
+
     <script>
         // Setup API Base 
         const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://localhost:8000' : '';
 
+        let allJobs = [];
+
         async function loadPublicJobs() {
             const publicGrid = document.getElementById('jobsGridPublic');
+            const loader = document.getElementById('loader');
+
             try {
                 const res = await fetch(`${API_BASE}/api/vagas`);
                 const result = await res.json();
-                const jobs = result.data || [];
+                allJobs = result.data || [];
 
-                if (jobs.length === 0) {
-                    publicGrid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 3rem; background:white; border-radius: 20px;"><h3>Nenhuma vaga no momento</h3><p>Volte em breve!</p></div>';
-                    return;
-                }
-
-                publicGrid.innerHTML = '';
-                jobs.forEach(job => {
-                    const card = document.createElement('div');
-                    card.className = "job-card";
-
-                    // Supabase fields
-                    const title = job.titulo || 'Vaga';
-                    const company = job.empresa || 'Empresa';
-                    const salary = job.salario_max ? `R$ ${job.salario_max}` : 'A combinar';
-                    const date = new Date(job.created_at).toLocaleDateString('pt-BR');
-
-                    card.innerHTML = `
-                        <div class="card-header">
-                            <div class="company-logo">
-                                <i data-lucide="briefcase" style="color:var(--text-muted)"></i>
-                            </div>
-                        </div>
-                        <div class="date-wrapper" style="position:absolute; top: 1.5rem; left: 5rem;">
-                            <span class="date-badge">${date}</span>
-                        </div>
-                        
-                        <div class="company-name">${company}</div>
-                        <h3 class="job-title">${title}</h3>
-                        
-                        <div class="job-meta">
-                            <span><i data-lucide="map-pin" style="width:12px; height:12px; display:inline-block; margin-right:4px"></i>Raio ${job.raio_maximo_km || 15}km</span>
-                        </div>
-                        
-                        <div class="job-salary" style="margin-bottom:1rem">${salary}</div>
-                        
-                        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem">${(job.descricao || '').substring(0, 100)}...</p>
-                        
-                        <a href="https://wa.me/5511910812040?text=Olá! Vi a vaga de *${encodeURIComponent(title)}* no portal e gostaria de me candidatar." target="_blank" class="btn-dark" style="width:100%; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px">
-                            <i data-lucide="message-circle" style="width:18px;height:18px"></i> Candidatar-se no Zap
-                        </a>
-                    `;
-                    publicGrid.appendChild(card);
-                });
-                if (window.lucide) window.lucide.createIcons();
+                renderJobs(allJobs);
             } catch (e) {
                 console.error(e);
-                publicGrid.innerHTML = '<p>Erro ao carregar vagas. Tente novamente mais tarde.</p>';
+                publicGrid.innerHTML = `
+                    <div class="col-span-full py-12 px-6 bg-red-50 border border-red-100 rounded-3xl text-center">
+                        <i data-lucide="alert-circle" class="w-10 h-10 text-red-400 mx-auto mb-4"></i>
+                        <h3 class="text-red-900 font-bold text-lg">Erro ao carregar vagas</h3>
+                        <p class="text-red-600">Por favor, atualize a página ou tente mais tarde.</p>
+                    </div>
+                `;
+                if (window.lucide) lucide.createIcons();
+            } finally {
+                if (loader) loader.remove();
             }
         }
+
+        function renderJobs(jobs) {
+            const publicGrid = document.getElementById('jobsGridPublic');
+
+            if (jobs.length === 0) {
+                publicGrid.innerHTML = `
+                    <div class="col-span-full py-20 px-6 bg-white border border-dashed border-gray-200 rounded-3xl text-center">
+                        <i data-lucide="package-search" class="w-12 h-12 text-gray-300 mx-auto mb-4"></i>
+                        <h3 class="text-gray-900 font-bold text-xl uppercase tracking-tight">Nenhuma vaga no momento</h3>
+                        <p class="text-gray-400">Volte em breve para novas oportunidades exclusivas.</p>
+                    </div>
+                `;
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+
+            publicGrid.innerHTML = '';
+            jobs.forEach(job => {
+                const title = job.titulo || 'Vaga';
+                const company = job.empresa || 'Nexa Gestão';
+                const salary = job.salario_max > 0 ? `R$ ${job.salario_max}` : 'A combinar';
+                const location = job.requisitos_obrigatorios.split(',')[0] || 'Remoto';
+
+                const card = document.createElement('div');
+                card.className = "bg-white border border-gray-100 p-8 rounded-[2rem] shadow-sm job-card-hover transition-all duration-300 flex flex-col relative overflow-hidden group";
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-6">
+                        <div class="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 group-hover:bg-black transition-colors duration-500">
+                            <i data-lucide="briefcase" class="w-6 h-6 text-gray-400 group-hover:text-white"></i>
+                        </div>
+                        <span class="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">Destaque</span>
+                    </div>
+
+                    <div class="flex-grow">
+                        <h3 class="text-xl font-extrabold text-gray-900 mb-2 line-clamp-1">${title}</h3>
+                        <p class="text-gray-400 font-semibold text-sm mb-6 flex items-center gap-2">
+                            <i data-lucide="building-2" class="w-3.5 h-3.5"></i> ${company}
+                        </p>
+                        
+                        <div class="space-y-3 mb-8">
+                            <div class="flex items-center gap-3 text-sm font-medium text-gray-600 bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                                <i data-lucide="map-pin" class="w-4 h-4 text-gray-400"></i>
+                                <span>Raio de ${job.raio_maximo_km || 15}km da unidade</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm font-medium text-gray-600 bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                                <i data-lucide="banknote" class="w-4 h-4 text-gray-400"></i>
+                                <span>${salary}</span>
+                            </div>
+                        </div>
+
+                        <p class="text-sm text-gray-500 leading-relaxed line-clamp-2 mb-8">${job.descricao || 'Sem descrição detalhada disponível.'}</p>
+                    </div>
+
+                    <a href="https://wa.me/5511910812040?text=Olá! Me interessei pela vaga de *${encodeURIComponent(title)}* que vi no portal e gostaria de me candidatar." 
+                       target="_blank" 
+                       class="mt-auto w-full bg-black text-white py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-gray-800 transition-all shadow-lg shadow-black/5 hover:shadow-black/20 transform hover:scale-[1.02] active:scale-[0.98]">
+                        <i data-lucide="message-circle" class="w-5 h-5"></i>
+                        Candidatar-se no Zap
+                    </a>
+                `;
+                publicGrid.appendChild(card);
+            });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // Search Filter
+        document.getElementById('jobSearch').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const filtered = allJobs.filter(job =>
+                job.titulo.toLowerCase().includes(term) ||
+                job.empresa.toLowerCase().includes(term) ||
+                (job.descricao || '').toLowerCase().includes(term)
+            );
+            renderJobs(filtered);
+        });
 
         document.addEventListener('DOMContentLoaded', loadPublicJobs);
     </script>
