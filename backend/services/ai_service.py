@@ -14,14 +14,16 @@ def gerar_resposta_ia(mensagem_usuario: str, numero_candidato: str) -> str:
     if not client: return "Desculpe, a IA está offline. (Configurar OPENAI_API_KEY)"
 
     vagas = obter_vagas_ativas()
-    contexto = """Você é um assistente virtual autônomo de RH (Headhunter IA).
+    contexto = """Você é Zora, uma assistente virtual autônoma de RH (Headhunter IA).
 Sua missão é realizar a primeira triagem conversacional de candidatos via WhatsApp de forma amigável, humanizada, curta e com emojis, guiando-os por um fluxo de qualificação em menos de 5 minutos.
 
 Siga RIGOROSAMENTE as seguintes regras de comportamento e etapas de qualificação:
 
 1. REGRAS INVIOLÁVEIS E COMPORTAMENTO:
-- Nunca saia do personagem. Seja sempre profissional, acolhedor e dinâmico. Você é uma inteligência artificial, não um ser humano.
-- EM HIPÓTESE ALGUMA invente dados pessoais sobre si mesmo (como CPF, RG, endereço ou histórico de trabalho). Você é o Recrutador, não o candidato.
+- Nunca saia do personagem. Seja sempre profissional, acolhedor e dinâmico. Você é Zora, uma inteligência artificial, não um ser humano.
+- EM HIPÓTESE ALGUMA invente dados pessoais sobre si mesmo (como CPF, RG, endereço ou histórico de trabalho). Você é Zora, a Recrutadora.
+- FORMATACÃO DE WHATSAPP: Para colocar texto em negrito, use APENAS um asterisco antes e depois (exemplo: *palavra*). NUNCA use dois (não use **palavra**).
+- RESPOSTA EM ÁUDIO: Se o candidato enviou um áudio ou pediu para você falar por áudio, inicie SUA resposta EXATAMENTE com a tag [AUDIO].
 - Seja objetivo nas respostas, evite textos muito longos. Incentive o diálogo.
 - A proximidade geográfica é um critério ELIMINATÓRIO. Se o candidato relatar ou enviar uma localização superior ao raio definido para a vaga (padrão de 15km), agradeça e informe educadamente que ele não pode seguir no processo para essa vaga específica.
 - Sempre tente direcionar a conversa para obter as informações das etapas abaixo, de forma natural.
@@ -86,9 +88,9 @@ def gerar_audio_ia(texto: str, nome_arquivo_saida="response.ogg"):
     
     try:
         client = ElevenLabs(api_key=api_key)
-        # Using a default voice_id instead of just "Rachel" name (or Rachel's known ID 21m00Tcm4TlvDq8ikWAM)
+        
         audio_generator = client.text_to_speech.convert(
-            voice_id="21m00Tcm4TlvDq8ikWAM", # Rachel
+            voice_id="33B4UnXyTNbgLmdEDh5P", # Zora Custom Voice
             output_format="mp3_44100_128",
             text=texto,
             model_id="eleven_multilingual_v2"
@@ -102,4 +104,27 @@ def gerar_audio_ia(texto: str, nome_arquivo_saida="response.ogg"):
         return nome_arquivo_saida
     except Exception as e:
         print("Erro ElevenLabs:", e)
+        return ""
+
+def transcrever_audio_zapi(audio_url: str) -> str:
+    import requests
+    import os
+    client = obter_client_openai()
+    if not client: return ""
+    
+    try:
+        resposta = requests.get(audio_url)
+        temp_file = "temp_audio_in.ogg"
+        with open(temp_file, "wb") as f:
+            f.write(resposta.content)
+            
+        with open(temp_file, "rb") as f:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1", 
+                file=f
+            )
+        os.remove(temp_file)
+        return transcript.text
+    except Exception as e:
+        print("Erro Whisper Transcrição:", e)
         return ""

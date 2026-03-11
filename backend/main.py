@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from services.db_service import criar_vaga, salvar_configuracoes, obter_vagas_ativas, supabase
-from services.ai_service import gerar_resposta_ia
+from services.ai_service import gerar_resposta_ia, transcrever_audio_zapi, gerar_audio_ia
 from services.zapi_service import enviar_mensagem_texto, enviar_audio
 from services.email_service import verificar_novos_curriculos
 from services.scoring_service import calcular_lead_scoring
@@ -95,11 +95,21 @@ async def zapi_webhook(request: Request):
     # Exemplo genérico de como receber mensagem Z-API
     # Verifica se a mensagem de texto chegou e se NÃO foi enviada pela própria IA (fromMe)
     if "isGroup" in payload and not payload["isGroup"] and not payload.get("fromMe", False):
-        texto_recebido = payload.get("text", {}).get("message", "")
         remetente = payload.get("phone", "")
         
+        # 1. Tentar extrair Texto ou Áudio
+        texto_recebido = payload.get("text", {}).get("message", "")
+        audio_recebido = payload.get("audio", {}).get("audioUrl", "")
+        
+        # Flag para saber se precisamos responder em áudio
+        responder_audio = False
+
+        if audio_recebido:
+            texto_recebido = transcrever_audio_zapi(audio_recebido)
+            responder_audio = True # Responde em áudio se a pessoa mandou áudio
+            
         if texto_recebido:
-            # Fluxo de WhatsApp Inteligente (Candidato enviando mensagem para a vaga)
+            # Fluxo de WhatsApp Inteligente (Candidato enviando mensagem)
             # 1. Simular Lead Scoring Rápido caso detecte que é um envio de perfil:
             if "currículo" in texto_recebido.lower() or "experiência" in texto_recebido.lower():
                 score = calcular_lead_scoring(
@@ -113,8 +123,25 @@ async def zapi_webhook(request: Request):
                 # 2. Resposta IA normal de RH
                 resposta_texto = gerar_resposta_ia(texto_recebido, remetente)
             
-            # 3. Enviar no Zap
-            enviar_mensagem_texto(remetente, resposta_texto)
+            # 3. Lógica para Responder usando Textos ou VOZ
+            if "[AUDIO]" in resposta_texto:
+                responder_audio = True
+                resposta_texto = resposta_texto.replace("[AUDIO]", "").strip()
+
+            if responder_audio:
+                # Primeiro manda o audio
+                arquivo_audio = gerar_audio_ia(resposta_texto, f"/tmp/response_{remetente}.mp3")
+                if arquivo_audio:
+                    enviar_audio(remetente, arquivo_audio)
+                    # Opcional: apagar o arquivo da temp
+                    import os
+                    if os.path.exists(arquivo_audio):
+                        os.remove(arquivo_audio)
+                else: # Fallback
+                    enviar_mensagem_texto(remetente, resposta_texto)
+            else:
+                # 3b. Enviar no Zap via Texto padrão
+                enviar_mensagem_texto(remetente, resposta_texto)
             
     return {"status": "received"}
 
