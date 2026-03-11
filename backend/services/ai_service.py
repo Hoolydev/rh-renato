@@ -114,7 +114,8 @@ def transcrever_audio_zapi(audio_url: str) -> str:
     
     try:
         resposta = requests.get(audio_url)
-        temp_file = "temp_audio_in.ogg"
+        # Usa o diretório /tmp que é gravável na Vercel
+        temp_file = "/tmp/temp_audio_in.ogg"
         with open(temp_file, "wb") as f:
             f.write(resposta.content)
             
