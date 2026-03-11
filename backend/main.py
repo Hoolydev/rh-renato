@@ -88,11 +88,23 @@ async def endpoint_upload_cv(file: UploadFile = File(...)):
     
     return {"status": "success", "scoring": resultado}
 
+# Cache de mensagens processadas para evitar duplicidade (Idempotência)
+processed_messages = []
+
 @app.post("/webhook/zapi")
 async def zapi_webhook(request: Request):
     payload = await request.json()
     
-    # Exemplo genérico de como receber mensagem Z-API
+    # Extrai o ID da mensagem para evitar processamento duplicado (Webhook Retry)
+    message_id = payload.get("messageId", "")
+    if message_id and message_id in processed_messages:
+        return {"status": "already_processed"}
+    
+    if message_id:
+        processed_messages.append(message_id)
+        if len(processed_messages) > 100:
+            processed_messages.pop(0)
+
     # Verifica se a mensagem de texto chegou e se NÃO foi enviada pela própria IA (fromMe)
     if "isGroup" in payload and not payload["isGroup"] and not payload.get("fromMe", False):
         remetente = payload.get("phone", "")
@@ -105,8 +117,11 @@ async def zapi_webhook(request: Request):
         responder_audio = False
 
         if audio_recebido:
-            texto_recebido = transcrever_audio_zapi(audio_recebido)
-            responder_audio = True # Responde em áudio se a pessoa mandou áudio
+            print(f"Áudio recebido de {remetente}: {audio_recebido}")
+            texto_transcrito = transcrever_audio_zapi(audio_recebido)
+            if texto_transcrito:
+                texto_recebido = texto_transcrito
+                responder_audio = True
             
         if texto_recebido:
             # Fluxo de WhatsApp Inteligente (Candidato enviando mensagem)
@@ -129,15 +144,20 @@ async def zapi_webhook(request: Request):
                 resposta_texto = resposta_texto.replace("[AUDIO]", "").strip()
 
             if responder_audio:
-                # Primeiro manda o audio
-                arquivo_audio = gerar_audio_ia(resposta_texto, f"/tmp/response_{remetente}.mp3")
-                if arquivo_audio:
-                    enviar_audio(remetente, arquivo_audio)
-                    # Opcional: apagar o arquivo da temp
-                    import os
-                    if os.path.exists(arquivo_audio):
-                        os.remove(arquivo_audio)
-                else: # Fallback
+                # Primeiro tenta gerar o audio
+                try:
+                    arquivo_audio = gerar_audio_ia(resposta_texto, f"/tmp/response_{remetente}.mp3")
+                    if arquivo_audio:
+                        enviar_audio(remetente, arquivo_audio)
+                        # Opcional: apagar o arquivo da temp
+                        import os
+                        if os.path.exists(arquivo_audio):
+                            os.remove(arquivo_audio)
+                    else:
+                        print(f"Falha ao gerar áudio para {remetente}. Enviando texto como fallback.")
+                        enviar_mensagem_texto(remetente, resposta_texto)
+                except Exception as e:
+                    print(f"Erro no processamento de áudio: {e}")
                     enviar_mensagem_texto(remetente, resposta_texto)
             else:
                 # 3b. Enviar no Zap via Texto padrão

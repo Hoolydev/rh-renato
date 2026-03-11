@@ -28,3 +28,21 @@ def salvar_candidato(dados):
 def atualizar_candidato(candidato_id, dados):
     if not supabase: return
     supabase.table("candidatos").update(dados).eq("id", candidato_id).execute()
+
+def obter_sessao(telefone):
+    if not supabase: return None
+    res = supabase.table("sessoes_whatsapp").select("*").eq("numero_whatsapp", telefone).execute()
+    return res.data[0] if res.data else None
+
+def salvar_sessao(telefone, historico):
+    if not supabase: return
+    # Verifica se já existe sessao
+    sessao = obter_sessao(telefone)
+    dados = {
+        "numero_whatsapp": telefone,
+        "historico_json": historico
+    }
+    if sessao:
+        supabase.table("sessoes_whatsapp").update(dados).eq("numero_whatsapp", telefone).execute()
+    else:
+        supabase.table("sessoes_whatsapp").insert(dados).execute()

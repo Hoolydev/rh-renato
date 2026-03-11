@@ -86,16 +86,32 @@
     <script>lucide.createIcons();</script>
     <script src="app.js"></script>
     <script>
-        // Init public page jobs
-        document.addEventListener('DOMContentLoaded', () => {
-            const jobs = JSON.parse(localStorage.getItem('rh_jobs'));
+        // Setup API Base 
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000' : '';
+
+        async function loadPublicJobs() {
             const publicGrid = document.getElementById('jobsGridPublic');
-            if (jobs && publicGrid) {
+            try {
+                const res = await fetch(`${API_BASE}/api/vagas`);
+                const result = await res.json();
+                const jobs = result.data || [];
+
+                if (jobs.length === 0) {
+                    publicGrid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 3rem; background:white; border-radius: 20px;"><h3>Nenhuma vaga no momento</h3><p>Volte em breve!</p></div>';
+                    return;
+                }
+
                 publicGrid.innerHTML = '';
                 jobs.forEach(job => {
                     const card = document.createElement('div');
-                    card.className = `job-card ${job.theme === 'dark' ? 'dark-theme' : ''}`;
-                    const tagsHtml = job.tags.map(tag => `<span>${tag}</span>`).join('    ');
+                    card.className = "job-card";
+
+                    // Supabase fields
+                    const title = job.titulo || 'Vaga';
+                    const company = job.empresa || 'Empresa';
+                    const salary = job.salario_max ? `R$ ${job.salario_max}` : 'A combinar';
+                    const date = new Date(job.created_at).toLocaleDateString('pt-BR');
 
                     card.innerHTML = `
                         <div class="card-header">
@@ -104,30 +120,34 @@
                             </div>
                         </div>
                         <div class="date-wrapper" style="position:absolute; top: 1.5rem; left: 5rem;">
-                        <span class="date-badge">${job.date}</span>
+                            <span class="date-badge">${date}</span>
                         </div>
                         
-                        <div class="company-name">
-                            ${job.company} 
+                        <div class="company-name">${company}</div>
+                        <h3 class="job-title">${title}</h3>
+                        
+                        <div class="job-meta">
+                            <span><i data-lucide="map-pin" style="width:12px; height:12px; display:inline-block; margin-right:4px"></i>Raio ${job.raio_maximo_km || 15}km</span>
                         </div>
-                        <h3 class="job-title">${job.title}</h3>
                         
-                        <div class="job-meta">${tagsHtml}</div>
+                        <div class="job-salary" style="margin-bottom:1rem">${salary}</div>
                         
-                        <div class="job-salary" style="margin-bottom:1rem">${job.salary}</div>
+                        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem">${(job.descricao || '').substring(0, 100)}...</p>
                         
-                        <!-- Mostra descrição na página pública se tiver -->
-                        ${job.descricao ? `<p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem">${job.descricao.substring(0, 80)}...</p>` : ''}
-                        
-                        <button class="btn-dark" style="width:100%" onclick="window.alert('Abrindo WhatsApp para a vaga: ${job.title}. Envie seu currículo para a nossa IA realizar a triagem!')">
+                        <a href="https://wa.me/5511910812040?text=Olá! Vi a vaga de *${encodeURIComponent(title)}* no portal e gostaria de me candidatar." target="_blank" class="btn-dark" style="width:100%; text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px">
                             <i data-lucide="message-circle" style="width:18px;height:18px"></i> Candidatar-se no Zap
-                        </button>
+                        </a>
                     `;
                     publicGrid.appendChild(card);
                 });
                 if (window.lucide) window.lucide.createIcons();
+            } catch (e) {
+                console.error(e);
+                publicGrid.innerHTML = '<p>Erro ao carregar vagas. Tente novamente mais tarde.</p>';
             }
-        });
+        }
+
+        document.addEventListener('DOMContentLoaded', loadPublicJobs);
     </script>
 </body>
 

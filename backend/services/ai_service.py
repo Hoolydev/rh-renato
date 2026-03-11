@@ -9,7 +9,10 @@ def obter_client_openai():
     return OpenAI(api_key=key) if key else None
 
 def gerar_resposta_ia(mensagem_usuario: str, numero_candidato: str) -> str:
-    """ Gera resposta para o candidato baseado nas vagas ativas. """
+    """ Gera resposta para o candidato baseado nas vagas ativas e persiste histórico. """
+    from services.db_service import obter_vagas_ativas, obter_sessao, salvar_sessao
+    import json
+
     client = obter_client_openai()
     if not client: return "Desculpe, a IA está offline. (Configurar OPENAI_API_KEY)"
 
@@ -44,28 +47,47 @@ Vagas atuais ativas e seus requisitos:
     
     contexto += "\nLembre-se: Analise as respostas do candidato passo a passo interagindo com ele. Não despeje todas as perguntas de uma vez!"
 
-    # Tratamento de Memória Conversacional
-    if numero_candidato not in historico_conversas:
-        historico_conversas[numero_candidato] = [{"role": "system", "content": contexto}]
+    # Recupera histórico do Supabase
+    sessao = obter_sessao(numero_candidato)
+    historico = []
+    if sessao and sessao.get("historico_json"):
+        try:
+            val = sessao["historico_json"]
+            historico = json.loads(val) if isinstance(val, str) else val
+        except:
+            historico = []
+
+    # Inicializa ou atualiza o System Prompt no topo
+    if not historico:
+        historico.append({"role": "system", "content": contexto})
     else:
-        # Atualiza o prompt de sistema caso as vagas mudem, mantendo no topo
-        historico_conversas[numero_candidato][0] = {"role": "system", "content": contexto}
+        historico[0] = {"role": "system", "content": contexto}
+    
+    historico.append({"role": "user", "content": mensagem_usuario})
 
-    historico_conversas[numero_candidato].append({"role": "user", "content": mensagem_usuario})
+    # Limite de contexto (System + últimas 19 mensagens)
+    historico_para_ia = [historico[0]] + historico[-19:]
 
-    # Limite simples para não estourar tokens (últimas 15 mensagens + system)
-    messages_para_enviar = [historico_conversas[numero_candidato][0]] + historico_conversas[numero_candidato][-14:]
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages_para_enviar,
-        max_tokens=300
-    )
-
-    resposta = response.choices[0].message.content
-    historico_conversas[numero_candidato].append({"role": "assistant", "content": resposta})
-
-    return resposta
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=historico_para_ia,
+            max_tokens=400
+        )
+        resposta = response.choices[0].message.content
+        
+        # Adiciona resposta ao histórico e salva no banco
+        historico.append({"role": "assistant", "content": resposta})
+        
+        # Mantém apenas as últimas 20 mensagens no histórico salvo para sanidade do DB
+        if len(historico) > 21:
+            historico = [historico[0]] + historico[-20:]
+            
+        salvar_sessao(numero_candidato, historico)
+        return resposta
+    except Exception as e:
+        print(f"Erro OpenAI: {e}")
+        return "Desculpe, tive um probleminha técnico. Pode repetir?"
 
 def analisar_pdf_curriculo(texto_pdf):
     client = obter_client_openai()
