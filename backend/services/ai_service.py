@@ -40,15 +40,28 @@ Vagas atuais ativas e seus requisitos:
     
     contexto += "\nLembre-se: Analise as respostas do candidato passo a passo interagindo com ele. Não despeje todas as perguntas de uma vez!"
 
+    # Tratamento de Memória Conversacional
+    if remetente not in historico_conversas:
+        historico_conversas[remetente] = [{"role": "system", "content": contexto}]
+    else:
+        # Atualiza o prompt de sistema caso as vagas mudem, mantendo no topo
+        historico_conversas[remetente][0] = {"role": "system", "content": contexto}
+
+    historico_conversas[remetente].append({"role": "user", "content": mensagem_usuario})
+
+    # Limite simples para não estourar tokens (últimas 15 mensagens + system)
+    messages_para_enviar = [historico_conversas[remetente][0]] + historico_conversas[remetente][-14:]
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": contexto},
-            {"role": "user", "content": mensagem_usuario}
-        ],
+        messages=messages_para_enviar,
         max_tokens=300
     )
-    return response.choices[0].message.content
+
+    resposta = response.choices[0].message.content
+    historico_conversas[remetente].append({"role": "assistant", "content": resposta})
+
+    return resposta
 
 def analisar_pdf_curriculo(texto_pdf):
     client = obter_client_openai()
