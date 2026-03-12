@@ -109,10 +109,12 @@ async def zapi_webhook(request: Request, background_tasks: BackgroundTasks):
     if "isGroup" in payload and not payload["isGroup"] and not payload.get("fromMe", False):
         remetente = payload.get("phone", "")
         
-        # 1. Tentar extrair Texto ou Áudio
+        # 1. Tentar extrair Texto, Áudio ou Documento (PDF)
         texto_recebido = payload.get("text", {}).get("message", "")
         audio_recebido = payload.get("audio", {}).get("audioUrl", "")
-        
+        documento_recebido = payload.get("document", {}).get("documentUrl", "")
+        documento_mime = payload.get("document", {}).get("mimeType", "")
+
         # Flag para saber se precisamos responder em áudio
         responder_audio = False
 
@@ -122,6 +124,14 @@ async def zapi_webhook(request: Request, background_tasks: BackgroundTasks):
             if texto_transcrito:
                 texto_recebido = texto_transcrito
                 responder_audio = True
+
+        if documento_recebido and "pdf" in documento_mime.lower():
+            print(f"PDF recebido de {remetente}: {documento_recebido}")
+            texto_curriculo = extrair_texto_pdf_url(documento_recebido)
+            if texto_curriculo:
+                texto_recebido = f"[CURRÍCULO EM PDF ENVIADO PELO CANDIDATO]\n{texto_curriculo[:3000]}"
+            else:
+                texto_recebido = "[SISTEMA: O candidato enviou um PDF, mas não foi possível extrair o texto. Pergunte se ele pode copiar e colar as principais informações do currículo.]"
             
         if texto_recebido:
             # Comando especial: limpar memória/histórico da conversa
@@ -192,6 +202,21 @@ async def endpoint_obter_candidaturas():
         "*, candidatos(nome, whatsapp, cpf_raw, endereco_completo, cargo_desejado, curriculo_texto_extraido, fonte), vagas(titulo)"
     ).order("created_at", desc=True).execute()
     return {"status": "success", "data": res.data or []}
+
+def extrair_texto_pdf_url(url: str) -> str:
+    """Baixa um PDF de uma URL e extrai o texto usando PyPDF2."""
+    import requests, io, PyPDF2
+    try:
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        reader = PyPDF2.PdfReader(io.BytesIO(resp.content))
+        texto = ""
+        for page in reader.pages:
+            texto += page.extract_text() or ""
+        return texto.strip()
+    except Exception as e:
+        print(f"Erro ao extrair PDF: {e}")
+        return ""
 
 def consultar_viacep(cep: str) -> dict | None:
     """Consulta o ViaCEP e retorna os dados de endereço ou None se inválido."""
