@@ -125,13 +125,25 @@ async def zapi_webhook(request: Request, background_tasks: BackgroundTasks):
                 texto_recebido = texto_transcrito
                 responder_audio = True
 
-        if documento_recebido and "pdf" in documento_mime.lower():
-            print(f"PDF recebido de {remetente}: {documento_recebido}")
-            texto_curriculo = extrair_texto_pdf_url(documento_recebido)
-            if texto_curriculo:
-                texto_recebido = f"[CURRÍCULO EM PDF ENVIADO PELO CANDIDATO]\n{texto_curriculo[:3000]}"
+        if documento_recebido:
+            mime = documento_mime.lower()
+            nome_arquivo = payload.get("document", {}).get("fileName", "").lower()
+            is_pdf = "pdf" in mime or nome_arquivo.endswith(".pdf")
+            is_word = "wordprocessingml" in mime or "msword" in mime or nome_arquivo.endswith((".docx", ".doc"))
+
+            if is_pdf:
+                print(f"PDF recebido de {remetente}: {documento_recebido}")
+                texto_curriculo = extrair_texto_pdf_url(documento_recebido)
+            elif is_word:
+                print(f"Word recebido de {remetente}: {documento_recebido}")
+                texto_curriculo = extrair_texto_word_url(documento_recebido)
             else:
-                texto_recebido = "[SISTEMA: O candidato enviou um PDF, mas não foi possível extrair o texto. Pergunte se ele pode copiar e colar as principais informações do currículo.]"
+                texto_curriculo = ""
+
+            if texto_curriculo:
+                texto_recebido = f"[CURRÍCULO ENVIADO PELO CANDIDATO]\n{texto_curriculo[:3000]}"
+            elif is_pdf or is_word:
+                texto_recebido = "[SISTEMA: O candidato enviou um documento, mas não foi possível extrair o texto. Peça para ele copiar e colar as principais informações do currículo na conversa.]"
             
         if texto_recebido:
             # Comando especial: limpar memória/histórico da conversa
@@ -216,6 +228,19 @@ def extrair_texto_pdf_url(url: str) -> str:
         return texto.strip()
     except Exception as e:
         print(f"Erro ao extrair PDF: {e}")
+        return ""
+
+def extrair_texto_word_url(url: str) -> str:
+    """Baixa um .docx de uma URL e extrai o texto usando python-docx."""
+    import requests, io, docx
+    try:
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        doc = docx.Document(io.BytesIO(resp.content))
+        texto = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        return texto.strip()
+    except Exception as e:
+        print(f"Erro ao extrair Word: {e}")
         return ""
 
 def consultar_viacep(cep: str) -> dict | None:
