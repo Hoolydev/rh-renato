@@ -34,6 +34,10 @@ def obter_sessao(telefone):
     res = supabase.table("sessoes_whatsapp").select("*").eq("phone", telefone).execute()
     return res.data[0] if res.data else None
 
+def limpar_sessao(telefone):
+    if not supabase: return
+    supabase.table("sessoes_whatsapp").delete().eq("phone", telefone).execute()
+
 def salvar_sessao(telefone, historico):
     if not supabase: return
     # Verifica se já existe sessao

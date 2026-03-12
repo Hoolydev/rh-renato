@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from services.db_service import criar_vaga, salvar_configuracoes, obter_vagas_ativas, supabase
+from services.db_service import criar_vaga, salvar_configuracoes, obter_vagas_ativas, supabase, limpar_sessao
 from services.ai_service import gerar_resposta_ia, transcrever_audio_zapi, gerar_audio_ia
 from services.zapi_service import enviar_mensagem_texto, enviar_audio
 from services.email_service import verificar_novos_curriculos
@@ -124,6 +124,27 @@ async def zapi_webhook(request: Request, background_tasks: BackgroundTasks):
                 responder_audio = True
             
         if texto_recebido:
+            # Comando especial: limpar memória/histórico da conversa
+            if texto_recebido.strip() == "#limpar":
+                limpar_sessao(remetente)
+                enviar_mensagem_texto(remetente, "✅ Conversa reiniciada! Me manda um 'oi' para começarmos de novo.")
+                return {"status": "cleared"}
+
+            # Validação automática de CEP: se a mensagem parecer um CEP, consulta ViaCEP
+            import re
+            cep_match = re.fullmatch(r"\d{5}-?\d{3}", texto_recebido.strip())
+            if cep_match:
+                dados_cep = consultar_viacep(texto_recebido.strip())
+                if dados_cep:
+                    cidade = dados_cep.get("localidade", "")
+                    uf = dados_cep.get("uf", "")
+                    bairro = dados_cep.get("bairro", "")
+                    logradouro = dados_cep.get("logradouro", "")
+                    endereco_formatado = f"{logradouro}, {bairro} - {cidade}/{uf}".strip(", ")
+                    texto_recebido = f"{texto_recebido.strip()} [SISTEMA: CEP válido. Endereço encontrado: {endereco_formatado}]"
+                else:
+                    texto_recebido = f"{texto_recebido.strip()} [SISTEMA: CEP inválido ou não encontrado. Peça ao candidato que informe um CEP válido de 8 dígitos.]"
+
             # Resposta IA normal de RH
             resposta_texto = gerar_resposta_ia(texto_recebido, remetente)
             
@@ -162,6 +183,30 @@ async def zapi_webhook(request: Request, background_tasks: BackgroundTasks):
                 enviar_mensagem_texto(remetente, resposta_texto)
             
     return {"status": "received"}
+
+@app.get("/api/candidaturas")
+async def endpoint_obter_candidaturas():
+    if not supabase:
+        return {"status": "error", "data": []}
+    res = supabase.table("candidaturas").select(
+        "*, candidatos(nome, whatsapp, cpf_raw, endereco_completo, cargo_desejado, curriculo_texto_extraido, fonte), vagas(titulo)"
+    ).order("created_at", desc=True).execute()
+    return {"status": "success", "data": res.data or []}
+
+def consultar_viacep(cep: str) -> dict | None:
+    """Consulta o ViaCEP e retorna os dados de endereço ou None se inválido."""
+    import re, requests
+    cep_limpo = re.sub(r"\D", "", cep)
+    if len(cep_limpo) != 8:
+        return None
+    try:
+        resp = requests.get(f"https://viacep.com.br/ws/{cep_limpo}/json/", timeout=5)
+        data = resp.json()
+        if data.get("erro"):
+            return None
+        return data
+    except Exception:
+        return None
 
 @app.get("/api/verificar_emails")
 async def endpoint_verificar_emails():

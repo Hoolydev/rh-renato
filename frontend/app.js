@@ -184,21 +184,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Mock Data: Candidates ---
-    const initialMockCandidates = [
-        {
-            id: 1, nome: "Maria Silva", origem: "WhatsApp", telefone: "(11) 99999-0001", email: "mariasilva@email.com", completude: 95, vaga: "Auxiliar Administrativo", urgente: true, distancia: "3.2 km", tempo: "12 min", score_final: 94, score_tec: 90, score_geo: 100, score_comp: 92, disponibilidade: "Imediato", pretensao: "R$ 1.800", faixa_vaga: "R$ 1.500 - R$ 2.000", fit_salarial: true, etapa: "Entrevista", engajamento: "Rápida"
-        },
-        {
-            id: 2, nome: "João Souza", origem: "WhatsApp", telefone: "(11) 99999-0002", email: "joaosouza@email.com", completude: 80, vaga: "Vigilante Patrimonial", urgente: false, distancia: "7.8 km", tempo: "28 min", score_final: 87, score_tec: 85, score_geo: 90, score_comp: 88, disponibilidade: "15 dias", pretensao: "R$ 2.200", faixa_vaga: "R$ 2.000 - R$ 2.500", fit_salarial: true, etapa: "Triagem", engajamento: "Rápida"
-        },
-        {
-            id: 3, nome: "Ana Ferreira", origem: "Email", telefone: "(11) 99999-0003", email: "anaferreira@email.com", completude: 60, vaga: "Recepcionista", urgente: false, distancia: "11.2 km", tempo: "35 min", score_final: 55, score_tec: 70, score_geo: 40, score_comp: 80, disponibilidade: "30 dias", pretensao: "R$ 3.500", faixa_vaga: "R$ 2.000 - R$ 2.500", fit_salarial: false, etapa: "Triagem", engajamento: "Lenta"
-        },
-        {
-            id: 4, nome: "Carlos Lima", origem: "Upload", telefone: "(11) 99999-0004", email: "carloslima@email.com", completude: 100, vaga: "Assistente Financeiro", urgente: false, distancia: "5.1 km", tempo: "18 min", score_final: 78, score_tec: 82, score_geo: 75, score_comp: 70, disponibilidade: "15 dias", pretensao: "R$ 2.800", faixa_vaga: "R$ 2.500 - R$ 3.000", fit_salarial: true, etapa: "Proposta", engajamento: "Rápida"
+    // --- Data: Candidates from API ---
+    let allCandidates = [];
+
+    function mapCandidaturaToRow(c, index) {
+        const cand = c.candidatos || {};
+        const vaga = c.vagas || {};
+        const score = c.score_final || 0;
+        const fonte = cand.fonte === 'whatsapp' ? 'WhatsApp' : (cand.fonte === 'email' ? 'Email' : 'Upload');
+        return {
+            id: c.id || index,
+            nome: cand.nome || 'Candidato',
+            origem: fonte,
+            telefone: cand.whatsapp || '-',
+            email: '-',
+            completude: cand.curriculo_texto_extraido ? 90 : 60,
+            vaga: vaga.titulo || cand.cargo_desejado || '-',
+            urgente: false,
+            distancia: cand.endereco_completo ? cand.endereco_completo : '-',
+            tempo: '-',
+            score_final: score,
+            score_tec: score,
+            score_geo: 0,
+            score_comp: 0,
+            disponibilidade: 'Imediato',
+            pretensao: '-',
+            faixa_vaga: '-',
+            fit_salarial: true,
+            etapa: c.status ? c.status.charAt(0).toUpperCase() + c.status.slice(1) : 'Triagem',
+            engajamento: 'Rápida',
+            justificativa: c.justificativa_ia || '',
+            pontos_fortes: c.pontos_fortes || [],
+            pontos_atencao: c.pontos_atencao || []
+        };
+    }
+
+    async function fetchCandidatos() {
+        try {
+            const res = await fetch(`${API_BASE}/api/candidaturas`);
+            const result = await res.json();
+            if (result.data && result.data.length > 0) {
+                allCandidates = result.data.map(mapCandidaturaToRow);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar candidaturas:', error);
         }
-    ];
+        renderCandidatos();
+    }
 
     const favorites = new Set();
     window.toggleFavorite = function (id) {
@@ -217,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderCandidatos() {
         if (!candidatosGrid) return;
-        const candidates = JSON.parse(localStorage.getItem('rh_candidates_tw')) || initialMockCandidates;
+        const candidates = allCandidates;
 
         const qSearch = (filterInputs[0]?.value || "").toLowerCase();
         const qScore = filterInputs[1]?.value || "Todos";
@@ -362,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (window.lucide) window.lucide.createIcons();
     }
-    renderCandidatos();
+    fetchCandidatos();
 
     // --- Drawer Control ---
     const drawerOverlay = document.getElementById('drawerOverlay');
@@ -388,8 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.openDrawer = function (id) {
-        const candidates = JSON.parse(localStorage.getItem('rh_candidates_tw')) || initialMockCandidates;
-        const c = candidates.find(cand => cand.id === id);
+        const c = allCandidates.find(cand => cand.id === id);
         if (!c) return;
 
         drawerContentBody.innerHTML = `
