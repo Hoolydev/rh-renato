@@ -4,7 +4,7 @@ import sys
 # Adaptação para Vercel Serverless: Adiciona a pasta do main.py ao Path do Python
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -92,7 +92,7 @@ async def endpoint_upload_cv(file: UploadFile = File(...)):
 processed_messages = []
 
 @app.post("/webhook/zapi")
-async def zapi_webhook(request: Request, background_tasks: BackgroundTasks):
+async def zapi_webhook(request: Request):
     payload = await request.json()
     
     # Extrai o ID da mensagem para evitar processamento duplicado (Webhook Retry)
@@ -171,38 +171,38 @@ async def zapi_webhook(request: Request, background_tasks: BackgroundTasks):
             resposta_texto = gerar_resposta_ia(texto_recebido, remetente)
             
             # 2. Verifica se a entrevista acabou
+            fim_entrevista = False
             if "[FIM_ENTREVISTA]" in resposta_texto:
-                # Remove a tag para não aparecer para o usuário
                 resposta_texto = resposta_texto.replace("[FIM_ENTREVISTA]", "").strip()
-                
-                # Dispara processamento em background para extrair dados e colocar na dashboard
-                background_tasks.add_task(processar_final_candidatura, remetente)
-                print(f"Entrevista finalizada para {remetente}. Processando dados do candidato...")
-            
+                fim_entrevista = True
+                print(f"Entrevista finalizada para {remetente}.")
+
             # 3. Lógica para Responder usando Textos ou VOZ
             if "[AUDIO]" in resposta_texto:
                 responder_audio = True
                 resposta_texto = resposta_texto.replace("[AUDIO]", "").strip()
 
             if responder_audio:
-                # Primeiro tenta gerar o audio
                 try:
                     arquivo_audio = gerar_audio_ia(resposta_texto, f"/tmp/response_{remetente}.mp3")
                     if arquivo_audio:
                         enviar_audio(remetente, arquivo_audio)
-                        # Opcional: apagar o arquivo da temp
                         import os
                         if os.path.exists(arquivo_audio):
                             os.remove(arquivo_audio)
                     else:
-                        print(f"Falha ao gerar áudio para {remetente}. Enviando texto como fallback.")
                         enviar_mensagem_texto(remetente, resposta_texto)
                 except Exception as e:
                     print(f"Erro no processamento de áudio: {e}")
                     enviar_mensagem_texto(remetente, resposta_texto)
             else:
-                # 3b. Enviar no Zap via Texto padrão
                 enviar_mensagem_texto(remetente, resposta_texto)
+
+            # 4. Processa candidatura APÓS enviar resposta ao candidato.
+            # Executado de forma síncrona (await) para garantir execução em ambientes
+            # serverless (Vercel), onde background_tasks são encerrados com a resposta HTTP.
+            if fim_entrevista:
+                await processar_final_candidatura(remetente)
             
     return {"status": "received"}
 
