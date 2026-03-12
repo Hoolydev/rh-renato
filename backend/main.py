@@ -315,6 +315,7 @@ async def processar_final_candidatura(remetente: str):
         # Tenta buscar por WhatsApp
         check = supabase.table("candidatos").select("id").eq("whatsapp", remetente).execute()
         
+        from datetime import datetime, timezone
         payload_candidato = {
             "nome": dados_extracao.get("nome"),
             "whatsapp": remetente,
@@ -323,7 +324,7 @@ async def processar_final_candidatura(remetente: str):
             "cargo_desejado": dados_extracao.get("vaga_desejada_titulo"),
             "curriculo_texto_extraido": dados_extracao.get("experiencia_resumo"),
             "fonte": "whatsapp",
-            "updated_at": "now()"
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
         if check.data:
