@@ -38,6 +38,38 @@ def limpar_sessao(telefone):
     if not supabase: return
     supabase.table("sessoes_whatsapp").delete().eq("phone", telefone).execute()
 
+def mensagem_ja_processada(telefone: str, message_id: str) -> bool:
+    """Verifica se um messageId já foi processado. Persiste no Supabase (funciona em serverless)."""
+    if not supabase or not message_id: return False
+    sessao = obter_sessao(telefone)
+    if not sessao: return False
+    import json
+    dados = sessao.get("dados_candidato") or {}
+    if isinstance(dados, str):
+        try: dados = json.loads(dados)
+        except: dados = {}
+    return message_id in dados.get("msgs_processadas", [])
+
+def marcar_mensagem_processada(telefone: str, message_id: str):
+    """Registra um messageId como processado na sessão do candidato."""
+    if not supabase or not message_id: return
+    sessao = obter_sessao(telefone)
+    import json
+    dados = {}
+    if sessao:
+        dados = sessao.get("dados_candidato") or {}
+        if isinstance(dados, str):
+            try: dados = json.loads(dados)
+            except: dados = {}
+    msgs = dados.get("msgs_processadas", [])
+    if message_id not in msgs:
+        msgs = msgs[-19:] + [message_id]   # mantém no máximo 20 IDs
+        dados["msgs_processadas"] = msgs
+        if sessao:
+            supabase.table("sessoes_whatsapp").update({"dados_candidato": dados}).eq("phone", telefone).execute()
+        else:
+            supabase.table("sessoes_whatsapp").insert({"phone": telefone, "dados_candidato": dados}).execute()
+
 def salvar_sessao(telefone, historico):
     if not supabase: return
     # Verifica se já existe sessao

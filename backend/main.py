@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from services.db_service import criar_vaga, salvar_configuracoes, obter_vagas_ativas, supabase, limpar_sessao
+from services.db_service import criar_vaga, salvar_configuracoes, obter_vagas_ativas, supabase, limpar_sessao, mensagem_ja_processada, marcar_mensagem_processada
 from services.ai_service import gerar_resposta_ia, transcrever_audio_zapi, gerar_audio_ia
 from services.zapi_service import enviar_mensagem_texto, enviar_audio
 from services.email_service import verificar_novos_curriculos
@@ -88,26 +88,20 @@ async def endpoint_upload_cv(file: UploadFile = File(...)):
     
     return {"status": "success", "scoring": resultado}
 
-# Cache de mensagens processadas para evitar duplicidade (Idempotência)
-processed_messages = []
-
 @app.post("/webhook/zapi")
 async def zapi_webhook(request: Request):
     payload = await request.json()
-    
-    # Extrai o ID da mensagem para evitar processamento duplicado (Webhook Retry)
-    message_id = payload.get("messageId", "")
-    if message_id and message_id in processed_messages:
-        return {"status": "already_processed"}
-    
-    if message_id:
-        processed_messages.append(message_id)
-        if len(processed_messages) > 100:
-            processed_messages.pop(0)
 
     # Verifica se a mensagem de texto chegou e se NÃO foi enviada pela própria IA (fromMe)
     if "isGroup" in payload and not payload["isGroup"] and not payload.get("fromMe", False):
         remetente = payload.get("phone", "")
+        message_id = payload.get("messageId", "")
+
+        # Deduplicação via Supabase — funciona em serverless (sem estado em memória)
+        if message_id and mensagem_ja_processada(remetente, message_id):
+            return {"status": "already_processed"}
+        if message_id:
+            marcar_mensagem_processada(remetente, message_id)
         
         # 1. Tentar extrair Texto, Áudio ou Documento (PDF)
         texto_recebido = payload.get("text", {}).get("message", "")
@@ -210,10 +204,33 @@ async def zapi_webhook(request: Request):
 async def endpoint_obter_candidaturas():
     if not supabase:
         return {"status": "error", "data": []}
-    res = supabase.table("candidaturas").select(
-        "*, candidatos(nome, whatsapp, cpf_raw, endereco_completo, cargo_desejado, curriculo_texto_extraido, fonte), vagas(titulo)"
-    ).order("created_at", desc=True).execute()
-    return {"status": "success", "data": res.data or []}
+
+    candidaturas = supabase.table("candidaturas").select("*").execute().data or []
+    if not candidaturas:
+        return {"status": "success", "data": []}
+
+    # Bulk lookup de candidatos e vagas (sem depender de FK no Supabase)
+    candidato_ids = list({c["candidato_id"] for c in candidaturas if c.get("candidato_id")})
+    vaga_ids      = list({c["vaga_id"]      for c in candidaturas if c.get("vaga_id")})
+
+    candidatos_map = {}
+    if candidato_ids:
+        rows = supabase.table("candidatos").select(
+            "id, nome, whatsapp, endereco_completo, cargo_desejado, curriculo_texto_extraido, fonte"
+        ).in_("id", candidato_ids).execute().data or []
+        candidatos_map = {r["id"]: r for r in rows}
+
+    vagas_map = {}
+    if vaga_ids:
+        rows = supabase.table("vagas").select("id, titulo").in_("id", vaga_ids).execute().data or []
+        vagas_map = {r["id"]: r for r in rows}
+
+    for c in candidaturas:
+        c["candidatos"] = candidatos_map.get(c.get("candidato_id"), {})
+        c["vagas"]      = vagas_map.get(c.get("vaga_id"), {})
+
+    candidaturas.sort(key=lambda x: x.get("id", ""), reverse=True)
+    return {"status": "success", "data": candidaturas}
 
 def extrair_texto_pdf_url(url: str) -> str:
     """Baixa um PDF de uma URL e extrai o texto usando PyPDF2."""
@@ -353,8 +370,8 @@ async def processar_final_candidatura(remetente: str):
                     requisitos_vaga=str(vaga_obj.get("requisitos_obrigatorios", ""))
                 )
                 
-                # Upsert na tabela candidaturas para aparecer no dashboard
-                supabase.table("candidaturas").upsert({
+                # Salva candidatura: atualiza se já existe, insere se não existe
+                cand_data = {
                     "candidato_id": candidato_id,
                     "vaga_id": vaga_id,
                     "score_final": score_data.get("score", 0),
@@ -362,9 +379,14 @@ async def processar_final_candidatura(remetente: str):
                     "pontos_fortes": score_data.get("pontos_fortes", []),
                     "pontos_atencao": score_data.get("pontos_fracos", []),
                     "status": "triagem"
-                }, on_conflict="candidato_id, vaga_id").execute()
-                
-                print(f"SUCESSO: Candidatura vinculada na Dashboard para {remetente} na vaga {vaga_titulo}")
+                }
+                existing = supabase.table("candidaturas").select("id").eq("candidato_id", candidato_id).eq("vaga_id", vaga_id).execute()
+                if existing.data:
+                    supabase.table("candidaturas").update(cand_data).eq("id", existing.data[0]["id"]).execute()
+                    print(f"SUCESSO: Candidatura atualizada para {remetente} na vaga {vaga_titulo}")
+                else:
+                    supabase.table("candidaturas").insert(cand_data).execute()
+                    print(f"SUCESSO: Candidatura criada para {remetente} na vaga {vaga_titulo}")
             else:
                 print(f"AVISO: Vaga '{vaga_titulo}' não encontrada ou não está aberta.")
 
