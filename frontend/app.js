@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewSections = document.querySelectorAll('.view-section');
 
     function switchTab(targetId) {
+        // Re-busca candidatos sempre que a aba for aberta
+        if (targetId === 'section-candidatos') fetchCandidatos();
+
         // Sections
         viewSections.forEach(section => {
             if (section.id === targetId) {
@@ -224,11 +227,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(`${API_BASE}/api/candidaturas`);
             const result = await res.json();
-            if (result.data && result.data.length > 0) {
-                allCandidates = result.data.map(mapCandidaturaToRow);
-            }
+            // Sempre atualiza — nunca deixa dado obsoleto em tela
+            allCandidates = (result.data || []).map(mapCandidaturaToRow);
         } catch (error) {
             console.error('Erro ao buscar candidaturas:', error);
+            allCandidates = [];
         }
         renderCandidatos();
     }
@@ -396,6 +399,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) window.lucide.createIcons();
     }
     fetchCandidatos();
+
+    const btnRefresh = document.getElementById('btnRefreshCandidatos');
+    if (btnRefresh) {
+        btnRefresh.addEventListener('click', () => {
+            btnRefresh.classList.add('animate-spin');
+            fetchCandidatos().finally(() => btnRefresh.classList.remove('animate-spin'));
+        });
+    }
 
     // --- Drawer Control ---
     const drawerOverlay = document.getElementById('drawerOverlay');

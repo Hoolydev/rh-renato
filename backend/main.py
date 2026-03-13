@@ -205,7 +205,7 @@ async def endpoint_obter_candidaturas():
     if not supabase:
         return {"status": "error", "data": []}
 
-    candidaturas = supabase.table("candidaturas").select("*").execute().data or []
+    candidaturas = supabase.table("candidaturas").select("*").order("created_at", desc=True).execute().data or []
     if not candidaturas:
         return {"status": "success", "data": []}
 
@@ -229,7 +229,6 @@ async def endpoint_obter_candidaturas():
         c["candidatos"] = candidatos_map.get(c.get("candidato_id"), {})
         c["vagas"]      = vagas_map.get(c.get("vaga_id"), {})
 
-    candidaturas.sort(key=lambda x: x.get("id", ""), reverse=True)
     return {"status": "success", "data": candidaturas}
 
 def extrair_texto_pdf_url(url: str) -> str:
