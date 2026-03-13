@@ -205,19 +205,18 @@ async def endpoint_obter_candidaturas():
     if not supabase:
         return {"status": "error", "data": []}
 
-    candidaturas = supabase.table("candidaturas").select("*").order("created_at", desc=True).execute().data or []
-    if not candidaturas:
-        return {"status": "success", "data": []}
+    candidaturas: list = list(supabase.table("candidaturas").select("*").order("created_at", desc=True).execute().data or [])
 
     # Bulk lookup de candidatos e vagas (sem depender de FK no Supabase)
-    candidato_ids = list({c["candidato_id"] for c in candidaturas if c.get("candidato_id")})
-    vaga_ids      = list({c["vaga_id"]      for c in candidaturas if c.get("vaga_id")})
+    candidato_ids_com_candidatura = {c["candidato_id"] for c in candidaturas if c.get("candidato_id")}
+    vaga_ids = list({c["vaga_id"] for c in candidaturas if c.get("vaga_id")})
 
     candidatos_map = {}
-    if candidato_ids:
+    all_candidato_ids = list(candidato_ids_com_candidatura)
+    if all_candidato_ids:
         rows = supabase.table("candidatos").select(
-            "id, nome, whatsapp, endereco_completo, cargo_desejado, curriculo_texto_extraido, fonte"
-        ).in_("id", candidato_ids).execute().data or []
+            "id, nome, whatsapp, endereco_completo, cargo_desejado, curriculo_texto_extraido, fonte, created_at"
+        ).in_("id", all_candidato_ids).execute().data or []
         candidatos_map = {r["id"]: r for r in rows}
 
     vagas_map = {}
@@ -228,6 +227,28 @@ async def endpoint_obter_candidaturas():
     for c in candidaturas:
         c["candidatos"] = candidatos_map.get(c.get("candidato_id"), {})
         c["vagas"]      = vagas_map.get(c.get("vaga_id"), {})
+
+    # Inclui candidatos sem candidatura (ex: vaga não encontrada no processamento final)
+    todos_candidatos = supabase.table("candidatos").select(
+        "id, nome, whatsapp, endereco_completo, cargo_desejado, curriculo_texto_extraido, fonte, created_at"
+    ).execute().data or []
+
+    for cand in todos_candidatos:
+        if cand["id"] not in candidato_ids_com_candidatura:
+            # Cria entrada sintética para aparecer no dashboard
+            candidaturas.append({
+                "id": f"cand_{cand['id']}",
+                "candidato_id": cand["id"],
+                "vaga_id": None,
+                "score_final": 0,
+                "status": "triagem",
+                "justificativa_ia": None,
+                "pontos_fortes": [],
+                "pontos_atencao": [],
+                "created_at": cand.get("created_at"),
+                "candidatos": cand,
+                "vagas": {}
+            })
 
     return {"status": "success", "data": candidaturas}
 
@@ -356,38 +377,50 @@ async def processar_final_candidatura(remetente: str):
             vaga_titulo = dados_extracao.get("vaga_desejada_titulo", "")
             # Busca vaga ativa por título aproximado
             vaga_res = supabase.table("vagas").select("*").ilike("titulo", f"%{vaga_titulo}%").eq("status", "aberta").execute()
-            
-            if vaga_res.data:
-                vaga_obj = vaga_res.data[0]
-                vaga_id = vaga_obj["id"]
-                
-                # Calcular Scoring Real em background (não mostra pro usuário)
+
+            # Fallback: se não encontrou pela título, pega qualquer vaga aberta
+            if not vaga_res.data and vaga_titulo:
+                vaga_res = supabase.table("vagas").select("*").eq("status", "aberta").execute()
+                if vaga_res.data:
+                    print(f"AVISO: Vaga '{vaga_titulo}' não encontrada exatamente, usando vaga disponível como fallback.")
+
+            vaga_obj = vaga_res.data[0] if vaga_res.data else None
+            vaga_id = vaga_obj["id"] if vaga_obj else None
+
+            # Calcular scoring se vaga encontrada, senão score neutro
+            if vaga_obj:
                 score_data = calcular_lead_scoring(
                     texto_curriculo=dados_extracao.get("experiencia_resumo", ""),
                     titulo_vaga=vaga_obj["titulo"],
                     descricao_vaga=vaga_obj["descricao"],
                     requisitos_vaga=str(vaga_obj.get("requisitos_obrigatorios", ""))
                 )
-                
-                # Salva candidatura: atualiza se já existe, insere se não existe
-                cand_data = {
-                    "candidato_id": candidato_id,
-                    "vaga_id": vaga_id,
-                    "score_final": score_data.get("score", 0),
-                    "justificativa_ia": score_data.get("justificativa"),
-                    "pontos_fortes": score_data.get("pontos_fortes", []),
-                    "pontos_atencao": score_data.get("pontos_fracos", []),
-                    "status": "triagem"
-                }
-                existing = supabase.table("candidaturas").select("id").eq("candidato_id", candidato_id).eq("vaga_id", vaga_id).execute()
-                if existing.data:
-                    supabase.table("candidaturas").update(cand_data).eq("id", existing.data[0]["id"]).execute()
-                    print(f"SUCESSO: Candidatura atualizada para {remetente} na vaga {vaga_titulo}")
-                else:
-                    supabase.table("candidaturas").insert(cand_data).execute()
-                    print(f"SUCESSO: Candidatura criada para {remetente} na vaga {vaga_titulo}")
             else:
-                print(f"AVISO: Vaga '{vaga_titulo}' não encontrada ou não está aberta.")
+                score_data = {"score": 0, "justificativa": "Vaga não identificada", "pontos_fortes": [], "pontos_fracos": []}
+                print(f"AVISO: Nenhuma vaga aberta encontrada para '{vaga_titulo}'. Candidatura será criada sem vaga.")
+
+            # Salva candidatura: atualiza se já existe, insere se não existe
+            cand_data = {
+                "candidato_id": candidato_id,
+                "vaga_id": vaga_id,
+                "score_final": score_data.get("score", 0),
+                "justificativa_ia": score_data.get("justificativa"),
+                "pontos_fortes": score_data.get("pontos_fortes", []),
+                "pontos_atencao": score_data.get("pontos_fracos", []),
+                "status": "triagem"
+            }
+            # Busca candidatura existente para este candidato (por vaga_id se encontrada, senão qualquer)
+            if vaga_id:
+                existing = supabase.table("candidaturas").select("id").eq("candidato_id", candidato_id).eq("vaga_id", vaga_id).execute()
+            else:
+                existing = supabase.table("candidaturas").select("id").eq("candidato_id", candidato_id).is_("vaga_id", "null").execute()
+
+            if existing.data:
+                supabase.table("candidaturas").update(cand_data).eq("id", existing.data[0]["id"]).execute()
+                print(f"SUCESSO: Candidatura atualizada para {remetente} na vaga '{vaga_titulo}'")
+            else:
+                supabase.table("candidaturas").insert(cand_data).execute()
+                print(f"SUCESSO: Candidatura criada para {remetente} na vaga '{vaga_titulo}'")
 
     except Exception as e:
         print(f"ERRO CRÍTICO no processamento final da candidatura: {e}")
