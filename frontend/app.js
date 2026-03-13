@@ -215,7 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
             engajamento: 'Rápida',
             justificativa: c.justificativa_ia || '',
             pontos_fortes: c.pontos_fortes || [],
-            pontos_atencao: c.pontos_atencao || []
+            pontos_atencao: c.pontos_atencao || [],
+            curriculo: cand.curriculo_texto_extraido || ''
         };
     }
 
@@ -383,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button onclick="window.toggleFavorite(${c.id})" class="p-1.5 rounded-lg hover:bg-gray-100 ${isFav ? 'text-amber-400' : 'text-gray-400'} transition-colors">
                                 <i data-lucide="star" class="w-4 h-4 ${isFav ? 'fill-current' : ''}"></i>
                             </button>
-                            <button onclick="window.openDrawer(${c.id})" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-sm">
+                            <button onclick="window.openDrawer('${c.id}')" class="bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-sm">
                                 Ver Perfil
                             </button>
                         </div>
@@ -466,24 +467,38 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Contato</h4>
                     <div class="border border-gray-100 rounded-xl p-4 bg-white shadow-sm flex flex-col gap-2 text-sm font-medium text-gray-700">
                         <div class="flex items-center gap-3"><i data-lucide="phone" class="w-4 h-4 text-gray-400"></i> ${c.telefone}</div>
-                        <div class="flex items-center gap-3"><i data-lucide="mail" class="w-4 h-4 text-gray-400"></i> ${c.email}</div>
+                        <div class="flex items-center gap-3"><i data-lucide="map-pin" class="w-4 h-4 text-gray-400"></i> ${c.distancia}</div>
                     </div>
                 </div>
-                
+
+                ${c.justificativa ? `
                 <div>
-                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Pretensão Salarial</h4>
-                    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4 flex justify-between items-center">
-                        <div>
-                            <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Pretensão</span>
-                            <strong class="text-lg ${c.fit_salarial ? 'text-emerald-700' : 'text-red-700'}">${c.pretensao}</strong>
-                        </div>
-                        <div class="text-gray-300 text-xl font-light">/</div>
-                        <div class="text-right">
-                            <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Faixa da Vaga</span>
-                            <strong class="text-lg text-gray-800">${c.faixa_vaga}</strong>
-                        </div>
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Justificativa da IA</h4>
+                    <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-900">${c.justificativa}</div>
+                </div>` : ''}
+
+                ${c.pontos_fortes && c.pontos_fortes.length ? `
+                <div class="flex gap-3">
+                    <div class="flex-1">
+                        <h4 class="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-2">Pontos Fortes</h4>
+                        <ul class="flex flex-col gap-1">
+                            ${c.pontos_fortes.map(p => `<li class="text-xs text-gray-700 flex gap-1.5"><span class="text-emerald-500 font-bold">+</span>${p}</li>`).join('')}
+                        </ul>
                     </div>
-                </div>
+                    ${c.pontos_atencao && c.pontos_atencao.length ? `
+                    <div class="flex-1">
+                        <h4 class="text-[10px] font-bold uppercase tracking-widest text-amber-600 mb-2">Pontos de Atenção</h4>
+                        <ul class="flex flex-col gap-1">
+                            ${c.pontos_atencao.map(p => `<li class="text-xs text-gray-700 flex gap-1.5"><span class="text-amber-500 font-bold">!</span>${p}</li>`).join('')}
+                        </ul>
+                    </div>` : ''}
+                </div>` : ''}
+
+                ${c.curriculo ? `
+                <div>
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Currículo / Experiência</h4>
+                    <div class="bg-gray-50 border border-gray-100 rounded-xl p-4 text-xs text-gray-700 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">${c.curriculo}</div>
+                </div>` : ''}
             </div>
         `;
         if (window.lucide) window.lucide.createIcons();
